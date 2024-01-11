@@ -1,5 +1,12 @@
 <?php
-error_reporting(0);
+//error_reporting(0);
+
+// List of app_rpt allowed AMI commands
+// the m-somethings are "templates" for str_replace
+$validCommands = array(
+    'add_statpost' => "Action-000000: Append\r\nCat-000000: m-localnode\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
+    'add_node' =>     "Action-000000: NewCat\r\nCat-000000: m-localnode\r\n",
+);
 
 // Reads output lines from Asterisk Manager
 function get_response($fp, $actionID) {
@@ -47,5 +54,32 @@ function AMIlogin($fp, $user, $password) {
 	} else {
 		return(FALSE);
 	}
+}
+
+// Format command and write it
+function AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString) {
+	// Asterisk Manger Interface needs an actionID so we can find our own response
+	$actionRand = mt_rand();
+	$actionID = 'aslmenu' . $actionRand;
+
+	// Build the AMI command string
+	$amiString = "Action: UpdateConfig\r\n";
+	$amiString .= "reload: $reload\r\n";
+	$amiString .= "srcfilename: $srcFile\r\n";
+	$amiString .= "dstfilename: $dstFile\r\n";
+	$amsString .= "PreserveEffectiveContext\r\n";
+	$amiString .= "ActionID: $actionID\r\n";
+	$amiString .= $cmdString;
+
+	// Complete AMI string
+	$amiString .= "\r\n";
+
+	// Do it
+	if ((@fwrite($fp,$amiString)) > 0 ) {
+		// Get response, but do nothing with it
+		$rptStatus = get_response($fp, $actionID);
+		return $rptStatus;
+	}
+	return(FALSE);
 }
 
