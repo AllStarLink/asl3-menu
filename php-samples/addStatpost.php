@@ -1,19 +1,21 @@
 #! /usr/bin/php
 <?php
 /*
-This example adds the statpost setting to the chosen node. The node number, node ip address, optional AMI port,
-AMI login and password are set in the ini file. The node must exist, ie added with the NewCat action or
-performed on a renamed node.
+Usage is ami.php node reload file cmd
+Where is node is used to load the AMI hostname:port id and password
+reload is yes or no to reload the module
+file is an alias to the actual config filename: rpt=rpt.conf, susb=simpleusb.conf, etc
+cmd is an alias tor the actual command: add_statpost, add_node, etc
 
-To test: edit the ini file then run this script with `php addStatpost.php`.
+To test: edit the ini file then run this script `ami.php`.
 */
 
 include('include.php');
 
-// Validate input
+/********** Validate input **********/
 #var_dump($argv);
-if (count($argv) != 6) {
-    print "Usage: node reload srcfile dstfile cmd\n"; exit(1);
+if (count($argv) != 5) {
+    print "Usage: node reload file cmd\n"; exit(1);
 };
 if(filter_var($argv[1], FILTER_VALIDATE_INT)) {
     $localnode = $argv[1];
@@ -26,43 +28,48 @@ if (filter_var($argv[2], FILTER_VALIDATE_REGEXP, array("options" => array("regex
 } else {
     print "Reload parameter must be yes or no.\n"; exit(1);
 }
-$pattern = '/^[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9]+)?$/';
-if (filter_var($argv[3], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
-    $srcFile = $argv[3];
-} else {
-    print "Source must be a valid filename.\n"; exit(1);
+
+#$namePattern = '/^[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9]+)?$/';
+$pattern = '/^[a-zA-Z0-9_-]+$/';
+if (! filter_var($argv[3], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
+    print "File has illegal characters.\n"; exit(1);
 }
-// Same $pattern as $argv[3]
-if (filter_var($argv[4], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
-    $dstFile = $argv[4];
+
+// Test for valid file in files array
+if (array_key_exists($argv[3], $validFiles)) {
+    $fileAlias = $argv[3];
 } else {
-    print "Destination must be a valid filename.\n"; exit(1);
+    print "Opps, $argv[3] is not a valid config file.\n"; exit(1);
 }
+
 // Test for valid command in commands array
-if (array_key_exists($argv[5], $validCommands)) {
-    $cmdAlias = $argv[5];
+if (array_key_exists($argv[4], $validCommands)) {
+    $cmdAlias = $argv[4];
 } else {
-    print "Opps, $argv[5] is not a valid command.\n"; exit(1);
+    print "Opps, $argv[4] is not a valid command.\n"; exit(1);
 }
 
-/* This bit of code did validate the command string. But I decided to build a list of valid commands for security and ease of use. */
-// $pattern = '~^[a-zA-Z0-9.=\-:\\\\_\/ ]+$~';
-// if (filter_var($argv[5], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
-// ...
-
-// Read configuration file
+/********** Read settings ini file **********/
 if (!file_exists('settings.ini')) {
     die("Couldn't load ini file.\n");
 }
 $config = parse_ini_file('settings.ini', true);
-
 if (! array_key_exists($localnode, $config)) {
     print "Opps, $localnode is not in settings.ini\n"; exit(1);
 }
-print_r($config);
-#print "<pre>"; print_r($config); print "</pre>";
+#print_r($config);
 
-// Open a socket to Asterisk Manager
+/********** Get validCommand and validFile from their alias ***********/
+$validFile = $validFiles[$fileAlias];
+$validCommand = $validCommands[$cmdAlias];
+
+/* print "fileAlias: $fileAlias\n";
+print "validFile: $validFile\n";
+print "cmdAlias: $cmdAlias\n";
+print "validCommand: $validCommand\n";
+exit;
+ */
+/********** Open a socket and login to Asterisk Manager **********/
 $fp = AMIconnect($config[$localnode]['host']);
 if (FALSE === $fp) {
 	die("Could not connect to Asterisk Manager.\n\n");
@@ -75,11 +82,13 @@ if (FALSE === AMIlogin($fp, $config[$localnode]['user'], $config[$localnode]['pa
     print "Logged in to $localnode\n";
 }
 
-// Get command string from commands array
-$cmdString = str_replace('m-localnode', $localnode, $validCommands[$cmdAlias]);
+/********** Update command place holders **********/
+$cmdString = str_replace('m-localnode', $localnode, $validCommand);
 #print "$cmdString\n";
 
 // Send to AMI
+$srcFile = $validFile;
+$dstFile = 'test.txt';
 $rptStatus = AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString);
 
 print_r($rptStatus);

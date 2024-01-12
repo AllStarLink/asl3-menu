@@ -1,12 +1,8 @@
 <?php
 //error_reporting(0);
 
-// List of app_rpt allowed AMI commands and allowed config files.
+// List of app_rpt allowed AMI commands and allowed .conf files.
 // the m-somethings are "templates" for str_replace
-$validCommands = array(
-    'add_statpost' => "Action-000000: Append\r\nCat-000000: m-localnode\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
-    'add_node' =>     "Action-000000: NewCat\r\nCat-000000: 19999\r\nOptions-000000: inherit='node-main'\r\n",
-);
 $validFiles = array(
 	'rpt' => 'rpt.conf',
 	'susb' => 'simpleusb.conf',
@@ -14,6 +10,10 @@ $validFiles = array(
 	'subradio' => 'usbradio.conf',
 	'usbradio_tune'=> 'usbdario_tune_usb_m-localnode.conf',
 	'test' => 'test.txt'
+);
+$validCommands = array(
+    'add_statpost' => "Action-000000: Append\r\nCat-000000: m-localnode\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
+    'add_node' =>     "Action-000000: NewCat\r\nCat-000000: m-newnode\r\nOptions-000000: inherit='node-main'\r\n",
 );
 
 // Reads output lines from Asterisk Manager
