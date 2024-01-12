@@ -7,3 +7,7 @@ This example adds the statpost setting to the chosen node. The node number, node
 The output is witten to test.conf. Any changes can then be easially seen w/o trashing the original. In real life you'd set the dstfilename to the same as the srcfilename and likely reload.
 
 To test: edit the ini file then run this script with `php addStatpost.php`.
+
+## Privilege Escalations
+`live_dangerously = yes` in asterisk.conf is necessary if using these AMI commands.
+https://docs.asterisk.org/Configuration/Dialplan/Privilege-Escalations-with-Dialplan-Functions/

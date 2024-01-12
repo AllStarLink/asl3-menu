@@ -20,6 +20,7 @@ if(filter_var($argv[1], FILTER_VALIDATE_INT)) {
 } else {
     print "Node number must be integer.\n"; exit(1);
 }
+// Yes or  No
 if (filter_var($argv[2], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => '/^(yes|no)$/i')))) {
     $reload = $argv[2];
 } else {
@@ -31,42 +32,34 @@ if (filter_var($argv[3], FILTER_VALIDATE_REGEXP, array("options" => array("regex
 } else {
     print "Source must be a valid filename.\n"; exit(1);
 }
+// Same $pattern as $argv[3]
 if (filter_var($argv[4], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
     $dstFile = $argv[4];
 } else {
     print "Destination must be a valid filename.\n"; exit(1);
 }
-
-// Lookup valid commands
+// Test for valid command in commands array
 if (array_key_exists($argv[5], $validCommands)) {
-    $cmd = $validCommands[$argv[5]];
+    $cmdAlias = $argv[5];
 } else {
     print "Opps, $argv[5] is not a valid command.\n"; exit(1);
 }
 
-print str_replace('m-localnode', $localnode, $cmd);
-
-/* This bit of code did validate the command string. But I decided to
-   build a list of valid commands for security and ease of use.
-   */
+/* This bit of code did validate the command string. But I decided to build a list of valid commands for security and ease of use. */
 // $pattern = '~^[a-zA-Z0-9.=\-:\\\\_\/ ]+$~';
 // if (filter_var($argv[5], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
-//     $cmdString = $argv[5];
-// } else {
-//     print "Command string contains illegal characters.\n"; exit(1);
-// }
-
-/* This sample should b pass the above validations */
-// ./addStatpost.php 1999 No rpt.conf test.conf 'Action-000000: Append\r\nCat-000000: 2509\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n'
-
-exit;
-
+// ...
 
 // Read configuration file
 if (!file_exists('settings.ini')) {
     die("Couldn't load ini file.\n");
 }
 $config = parse_ini_file('settings.ini', true);
+
+if (! array_key_exists($localnode, $config)) {
+    print "Opps, $localnode is not in settings.ini\n"; exit(1);
+}
+print_r($config);
 #print "<pre>"; print_r($config); print "</pre>";
 
 // Open a socket to Asterisk Manager
@@ -82,31 +75,11 @@ if (FALSE === AMIlogin($fp, $config[$localnode]['user'], $config[$localnode]['pa
     print "Logged in to $localnode\n";
 }
 
-AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString);
+// Get command string from commands array
+$cmdString = str_replace('m-localnode', $localnode, $validCommands[$cmdAlias]);
+#print "$cmdString\n";
 
-// // Asterisk Manger Interface needs an actionID so we can find our own response
-// $actionRand = mt_rand();
-// $actionID = 'aslmenu' . $actionRand;
+// Send to AMI
+$rptStatus = AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString);
 
-// // Build the AMI command string
-// $amiString = "Action: UpdateConfig\r\n";
-// $amiString .= "reload: no\r\n";
-// $amiString .= "srcfilename: rpt.conf\r\n";
-// $amiString .= "dstfilename: test.conf\r\n";
-// $amsString .= "PreserveEffectiveContext\r\n";
-// $amiString .= "ActionID: $actionID\r\n";
-
-// // Add a value to 2509
-
-
-// // Complete AMI string
-// $amiString .= "\r\n";
-
-// // Do it
-// if ((@fwrite($fp,$amiString)) > 0 ) {
-//     // Get response, but do nothing with it
-//     $rptStatus = get_response($fp, $actionID);
-//     print_r($rptStatus);
-// } else {
-//     die("Command failed!\n");
-// }
+print_r($rptStatus);
