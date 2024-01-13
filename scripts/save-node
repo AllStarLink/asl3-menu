@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# N4IRS 07/26/2017
+# mod4whip N8THN 2018
+#release date 20180323-1
+#Fixes by WD6AWP 3/8/2021
+#Fixes by WA3WCO 1/10/2024
+
+SAVESITE="http://backup.allstarlink.org"
+SAVENODE_CONFIG=/etc/asterisk/savenode.conf
+SAVENODE_ARCHIVE=/tmp/astsave.tgz
+
+# source config file, exit on error
+if [ -r $SAVENODE_CONFIG ]; then
+    .  $SAVENODE_CONFIG
+else
+    whiptail --msgbox "Sorry, the \"$SAVENODE_CONFIGthe\" file does not exist." 20 60
+    exit 1
+fi
+
+# check if configured/enabled
+if [ $ENABLE -eq 0 ]; then
+    whiptail --msgbox "The configuration file $SAVENODE_CONFIG is not configured. Please use the ASL Configuration Menu to update your node configuration." 20 60
+    exit 1
+fi
+
+# the configuration file looks good
+whiptail --msgbox "Backing up the configuration for ASL node $NODE to \"$SAVESITE\"." 20 60
+
+( cd / && tar -czf $SAVENODE_ARCHIVE etc/asterisk ) > /dev/null 2>&1
+RC=$?
+if [ $RC -eq 0 ]; then
+    wget -q -t 1 -O - -T 60				\
+	--http-user="$NODE" --http-password="$PASSWORD"	\
+	--post-file=$SAVENODE_ARCHIVE			\
+	$SAVESITE/savenode.cgi
+    RC=$?
+    if [ $RC -eq 0 ]; then
+	whiptail --msgbox "File transfer successful." 20 60
+    else
+	whiptail --msgbox "There was an error in the file transfer (exit code $RC)." 20 60
+    fi
+else
+    whiptail --msgbox "There was an error creating the backup archive (exit code $RC)." 20 60
+fi
+
+rm -f $SAVENODE_ARCHIVE
+
+exit $RC
