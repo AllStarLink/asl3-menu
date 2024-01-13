@@ -1,12 +1,16 @@
 # Sample Php Code
-This directory contains php examples of using the AMI UpdateConfig action (https://asterisk.phreaknet.org/#manageraction-UpdateConfig). These samples are strictly for education on how to use the AMI and are not for production.
+This directory contains php examples of using the AMI UpdateConfig action (https://asterisk.phreaknet.org/#manageraction-UpdateConfig). These samples are strictly for education and are not for production at this time.
 
-## addStatpost.php
-This example adds the statpost setting to the chosen node. The node number, node ip address, colon seperated optional AMI port, AMI login and password must be set in the ini file. The node must exist. The AMI can add nodes with the NewCat action or renamed a node with the RenameCat action. Examples of those later.
+## ami.php
+Usage is `ami.php node reload file cmd` where:
+- node is used to load the AMI hostname:port id and password
+- reload is yes or no to reload the module
+- file is an alias to the actual config filename: rpt=rpt.conf, susb=simpleusb.conf, etc
+- cmd is an alias for the actual command: add_statpost, add_node, etc
 
-The output is witten to test.conf. Any changes can then be easially seen w/o trashing the original. In real life you'd set the dstfilename to the same as the srcfilename and likely reload.
+Currently the output is witten to /etc/asterisk/test.conf. Any changes can then be easially seen w/o trashing the original. One line change to update the original.
 
-To test: edit the ini file then run this script with `php addStatpost.php`.
+To test: edit the settings.ini and run the script.
 
 ## Privilege Escalations
 `live_dangerously = yes` in asterisk.conf is necessary if using these AMI commands.
