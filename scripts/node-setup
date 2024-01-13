@@ -34,6 +34,11 @@ check_configuration() {
     fi
 }
 
+update_file_permissions() {
+    ASTERISK_USER=$(stat --format="%U" "$CONFIG_DIR")
+    chown $ASTERISK_USER $*
+}
+
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 calc_wt_size() {
@@ -155,6 +160,8 @@ do_select_statpost() {
 	*) return
 	   ;;
     esac
+
+    update_file_permissions $CONFIG_DIR/rpt.conf
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -205,7 +212,8 @@ do_select_duplex() {
 do_set_duplex() {
     echo "doing do_rpt_duplex" >>$logfile
 
-    sed -i "/^duplex\s*=\s*/s/$CURRENT_DUPLEX/$NEW_DUPLEX/" $CONFIG_DIR/rpt.conf
+    sed -i "/^duplex\s*=\s*/s/$CURRENT_DUPLEX/$NEW_DUPLEX/"	$CONFIG_DIR/rpt.conf
+    update_file_permissions $CONFIG_DIR/rpt.conf
 
     AST_RESTART=1
 }
@@ -252,21 +260,30 @@ do_set_node_number() {
     # * The template node has a node # of "1234" and not "1999". Fix this first :-)
     # * New nodes will have the register statement commented. Remove it first then change node number.
     #
-    sed -i "/register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:abcdef/"	$CONFIG_DIR/rpt_http_registrations.conf
-    sed -i "/^;.*register\s*=>\s*${CURRENT_NODE}:/ s/;\s*//"				$CONFIG_DIR/rpt_http_registrations.conf
-    sed -i "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
+    sed -i "/register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"		$CONFIG_DIR/rpt_http_registrations.conf
+    sed -i "/^;.*register\s*=>\s*${CURRENT_NODE}:/ s/;\s*//"			$CONFIG_DIR/rpt_http_registrations.conf
+    sed -i "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt_http_registrations.conf
 
     # Update "save-node" configuration
-    sed -i "/^NODE\s*=/ s/NODE\s*=.*/NODE=$NEW_NODE/"					$CONFIG_DIR/savenode.conf
+    sed -i "/^NODE\s*=/ s/NODE\s*=.*/NODE=$NEW_NODE/"				$CONFIG_DIR/savenode.conf
 
     # Update "simpleusb" configuration
-    sed -i "/^\[usb_$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/simpleusb.conf
+    sed -i "/^\[usb_$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/simpleusb.conf
 
     # Update "usbradio" configuration
-    sed -i "/^\[usb_$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/usbradio.conf
+    sed -i "/^\[usb_$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/usbradio.conf
 
     # Update "voter" configuration
-    sed -i "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/voter.conf
+    sed -i "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/voter.conf
+
+    update_file_permissions			\
+	$CONFIG_DIR/rpt.conf			\
+	$CONFIG_DIR/extensions.conf		\
+	$CONFIG_DIR/rpt_http_registrations.conf	\
+	$CONFIG_DIR/savenode.conf		\
+	$CONFIG_DIR/simpleusb.conf		\
+	$CONFIG_DIR/usbradio.conf		\
+	$CONFIG_DIR/voter.conf
 
     AST_RESTART=1
 }
@@ -310,14 +327,14 @@ do_set_node_password() {
     # * The template node has a node # of "1234" and not "1999". Fix this first :-)
     # * New nodes will have the register statement commented. Remove it first then change node password.
     #
-    sed -i "/register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:abcdef/"	$CONFIG_DIR/rpt_http_registrations.conf
-    sed -i "/^;.*register\s*=>\s*${CURRENT_NODE}:/ s/;\s*//"				$CONFIG_DIR/rpt_http_registrations.conf
-    sed -i "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_PASSWD/$NEW_PASSWD/"		$CONFIG_DIR/rpt_http_registrations.conf
-
-    # Update node registration
+    sed -i "/register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"		$CONFIG_DIR/rpt_http_registrations.conf
+    sed -i "/^;.*register\s*=>\s*${CURRENT_NODE}:/ s/;\s*//"			$CONFIG_DIR/rpt_http_registrations.conf
+    sed -i "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_PASSWD/$NEW_PASSWD/"	$CONFIG_DIR/rpt_http_registrations.conf
 
     # Update "save-node" configuration
-    sed -i "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWD/" $CONFIG_DIR/savenode.conf
+    sed -i "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWD/"		$CONFIG_DIR/savenode.conf
+
+    update_file_permissions $CONFIG_DIR/rpt_http_registrations.conf $CONFIG_DIR/savenode.conf
 
     AST_RESTART=1
 }
@@ -348,8 +365,10 @@ do_select_node_callsign() {
 
 do_set_node_callsign() {
     # Update callsign (for "ID")
-    sed -i "/^idrecording\s*=\s*|i$CURRENT_CALLSIGN/ s/$CURRENT_CALLSIGN/$NEW_CALLSIGN/" $CONFIG_DIR/rpt.conf
-    sed -i "/^idtalkover\s*=\s*|i$CURRENT_CALLSIGN/ s/$CURRENT_CALLSIGN/$NEW_CALLSIGN/" $CONFIG_DIR/rpt.conf
+    sed -i "/^idrecording\s*=\s*|i$CURRENT_CALLSIGN/ s/$CURRENT_CALLSIGN/$NEW_CALLSIGN/"	$CONFIG_DIR/rpt.conf
+    sed -i "/^idtalkover\s*=\s*|i$CURRENT_CALLSIGN/ s/$CURRENT_CALLSIGN/$NEW_CALLSIGN/"		$CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/rpt.conf
 
     AST_RESTART=1
 }
@@ -381,7 +400,9 @@ do_select_ami_secret() {
 }
 
 do_set_ami_secret() {
-    sed -i "/^secret\s*=\s*$CURRENT_AMI_SECRET/ s/$CURRENT_AMI_SECRET/$NEW_AMI_SECRET/" $CONFIG_DIR/manager.conf
+    sed -i "/^secret\s*=\s*$CURRENT_AMI_SECRET/ s/$CURRENT_AMI_SECRET/$NEW_AMI_SECRET/"	$CONFIG_DIR/manager.conf
+
+    update_file_permissions $CONFIG_DIR/manager.conf
 
     AST_RESTART=1
 }
@@ -431,7 +452,7 @@ do_noload_chan_modules() {
     sed -i "/^load\s*=>\s*chan_pi/        s/load/noload/"	$CONFIG_DIR/modules.conf
     sed -i "/^load\s*=>\s*chan_beagle/    s/load/noload/"	$CONFIG_DIR/modules.conf
 
-    # Comment all rxchannels.
+    # Comment all rxchannels
     sed -i "s/^rxchannel/; rxchannel/g"				$CONFIG_DIR/rpt.conf
 }
 
@@ -441,8 +462,11 @@ do_set_simpleusb() {
     do_noload_chan_modules
 
     # Load module and set rxchannel
-    sed -i "/^noload.\+chan_simpleusb/ s/noload/load/" $CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*SimpleUSB/ s/^;\s*rxchannel/rxchannel/" $CONFIG_DIR/rpt.conf
+    sed -i "/^noload.\+chan_simpleusb/ s/noload/load/"				$CONFIG_DIR/modules.conf
+    sed -i "/^;\s*rxchannel\s*=\s*SimpleUSB/ s/^;\s*rxchannel/rxchannel/"	$CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+
     AST_RESTART=1
 }
 
@@ -452,8 +476,11 @@ do_set_usbradio() {
     do_noload_chan_modules
 
     # Load module and set rxchannel
-    sed -i "/^noload.\+chan_usbradio/ s/noload/load/" $CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*Radio/ s/^;\s*rxchannel/rxchannel/" $CONFIG_DIR/rpt.conf
+    sed -i "/^noload.\+chan_usbradio/ s/noload/load/"				$CONFIG_DIR/modules.conf
+    sed -i "/^;\s*rxchannel\s*=\s*Radio/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+
     AST_RESTART=1
 }
 
@@ -463,8 +490,11 @@ do_set_voter() {
     do_noload_chan_modules
 
     # Load module and set rxchannel
-    sed -i "/^noload.\+chan_voter/ s/noload/load/" $CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*Voter/ s/^;\s*rxchannel/rxchannel/" $CONFIG_DIR/rpt.conf
+    sed -i "/^noload.\+chan_voter/ s/noload/load/"				$CONFIG_DIR/modules.conf
+    sed -i "/^;\s*rxchannel\s*=\s*Voter/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+
     AST_RESTART=1
 }
 
@@ -474,8 +504,11 @@ do_set_pseudo() {
     do_noload_chan_modules
 
     # Load module (is chan_dahdi always loaded?) and set rxchannel
-    sed -i "/^noload.\+chan_dahdi/ s/noload/load/" $CONFIG_DIR/modules.conf
-    sed -i '/^;\s*rxchannel\s*=\s*dahdi\/pseudo/ s/;\s*rxchannel/rxchannel/' $CONFIG_DIR/rpt.conf
+    sed -i "/^noload.\+chan_dahdi/ s/noload/load/"				$CONFIG_DIR/modules.conf
+    sed -i '/^;\s*rxchannel\s*=\s*dahdi\/pseudo/ s/;\s*rxchannel/rxchannel/'	$CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+
     AST_RESTART=1
 }
 
@@ -485,7 +518,10 @@ do_set_quadradio() {
     do_noload_chan_modules
 
     # Set rxchannel (No dahdi/pesudo module?)
-    sed -i "/^;\s*rxchannel\s*=\s*Dahdi/ s/^;\s*rxchannel/rxchannel/" $CONFIG_DIR/rpt.conf
+    sed -i "/^;\s*rxchannel\s*=\s*Dahdi/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+
     AST_RESTART=1
 }
 
@@ -495,8 +531,11 @@ do_set_beagle() {
     do_noload_chan_modules
 
     # Load module and set rxchannel
-    sed -i "/^noload.\+chan_beagle/ s/noload/load/" $CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*Beagle/ s/^;\s*rxchannel/rxchannel/" $CONFIG_DIR/rpt.conf
+    sed -i "/^noload.\+chan_beagle/ s/noload/load/"				$CONFIG_DIR/modules.conf
+    sed -i "/^;\s*rxchannel\s*=\s*Beagle/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+
     AST_RESTART=1
 }
 
@@ -506,8 +545,11 @@ do_set_usrp() {
     do_noload_chan_modules
 
     # Load module and set rxchannel
-    sed -i "/^noload.\+chan_usrp/ s/noload/load/" $CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*USRP/ s/^;\s*rxchannel/rxchannel/" $CONFIG_DIR/rpt.conf
+    sed -i "/^noload.\+chan_usrp/ s/noload/load/"				$CONFIG_DIR/modules.conf
+    sed -i "/^;\s*rxchannel\s*=\s*USRP/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+
     AST_RESTART=1
 }
 
