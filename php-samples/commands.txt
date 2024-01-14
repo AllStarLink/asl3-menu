@@ -1,0 +1,37 @@
+List of possible commands.
+/etc/asterisk/manager.conf
+    asl_manager_set_secret(string secret)
+/etc/asterisk/rpt.conf
+    asl_node_create(int new_node)                   // add the [1999] instance *and* update [nodes]
+    asl_node_change(int node, int new_node)             // optional
+    asl_node_delete(int node)                       // remove the [1999] instance *and* update [nodes]
+    asl_node_set_callsign(int node, string callsign)            // set [1999] idrecording, idtalkover
+    asl_node_set_duplex(int node, int duplex)               // set [1999] duplex
+    asl_node_set_rxchannel(int node, string rxChannel, bool enable) // set [1999] rxchannel
+    asl_node_set_statistics(int node, bool enable)          // set [1999] statpost_url
+/etc/asterisk/rpt.conf
+    asl_node_registration_create(int new_node)
+    asl_node_registration_change(int node, int new_node)        // optional
+    asl_node_registration_delete(int node)
+    asl_node_registration_set_password(int node, string ASLpass)
+/etc/asterisk/extensions.conf
+    asl_node_extensions_create(int new_node)
+    asl_node_extensions_change(int node, int new_node)          // optional
+    asl_node_extensions_delete(int node)
+/etc/asterisk/simpleusb.conf
+    asl_node_simpleusb_create(int new_node)
+    asl_node_simpleusb_change(int node, int new_node)           // optional
+    asl_node_simpleusb_delete(int node)
+/etc/asterisk/usbradio.conf
+    asl_node_usbradio_create(int new_node)
+    asl_node_usbradio_change(int node, int new_node)            // optional
+    asl_node_usbradio_delete(int node)
+/etc/asterisk/voter.conf
+    asl_node_voter_create(int new_node)
+    asl_node_voter_change(int node, int new_node)           // optional
+    asl_node_voter_delete(int node)
+/etc/asterisk/modules.conf
+    asl_module_enable(string module, bool load)
+/etc/asterisk/savenode.conf
+    Do we need/want to maintain this configuration file with AMI?  If so,
+    the file contains the node# and ASLpass.
