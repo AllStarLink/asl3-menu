@@ -6,14 +6,18 @@
 $validFiles = array(
 	'rpt' => 'rpt.conf',
 	'susb' => 'simpleusb.conf',
-	'susb_tune' => 'simple_tune_usb_m-localnode.conf',
+	'susb_tune' => 'simple_tune_usb_m-nodeNumber.conf',
 	'subradio' => 'usbradio.conf',
-	'usbradio_tune'=> 'usbdario_tune_usb_m-localnode.conf',
+	'usbradio_tune'=> 'usbdario_tune_usb_m-nodeNumber.conf',
 	'test' => 'test.txt'
 );
 $validCommands = array(
-    'add_statpost' => "Action-000000: Append\r\nCat-000000: m-localnode\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
-    'add_node' =>     "Action-000000: NewCat\r\nCat-000000: m-newnode\r\nOptions-000000: inherit='node-main'\r\n",
+    'add_node' =>     "Action-000000: NewCat\r\nCat-000000: m-nodeNumber\r\nOptions-000000: inherit='node-main'\r\n",
+    'add_susb' =>     "Action-000000: Append\r\nCat-000000: m-nodeNumber\r\nVar-000000: rxchannel\r\nValue-000000: SimpleUSB/usb_m-nodeNumber\r\n",
+    'add_statpost' => "Action-000000: Append\r\nCat-000000: m-nodeNumber\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
+    'add_nodes' =>    "Action-000000: Append\r\nCat-000000: nodes\r\nVar-000000: m-nodeNumber\r\nValue-000000: radio@m-parameter/m-nodeNumber,NONE\r\n",
+	'rm_susb'  =>     "Action-000000: Delete\r\nCat-000000: m-nodeNumber\r\nVar-000000: rxchannel\r\n",
+	'rm_statpost'  => "Action-000000: Delete\r\nCat-000000: m-nodeNumber\r\nVar-000000: statpost_url\r\n",
 );
 
 // Reads output lines from Asterisk Manager

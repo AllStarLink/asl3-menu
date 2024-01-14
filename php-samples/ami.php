@@ -12,41 +12,67 @@ To test: edit the ini file then run this script `ami.php`.
 
 include('include.php');
 
-/********** Validate input **********/
-#var_dump($argv);
-if (count($argv) != 5) {
-    print "Usage: node reload file cmd\n"; exit(1);
+/********** Validate CLI input **********/
+#var_dump($argc);
+print_r($argv);
+if ($argc != 6) {
+    print "Usage: hostlookup reload file node fileAlias cmdAlias[=parameter]\n"; exit(1);
 };
-if(filter_var($argv[1], FILTER_VALIDATE_INT)) {
-    $localnode = $argv[1];
+
+// 1 host lookup
+$pattern = '/^[a-zA-Z0-9_-]+$/';
+if (filter_var($argv[1], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
+    #if(filter_var($argv[1], FILTER_VALIDATE_INT)) {
+    $hostLookup = $argv[1];
 } else {
-    print "Node number must be integer.\n"; exit(1);
+    print "Host lookup invalid string.\n"; exit(1);
 }
-// Yes or  No
+
+// 2 Reload - Test for Yes or  No
 if (filter_var($argv[2], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => '/^(yes|no)$/i')))) {
     $reload = $argv[2];
 } else {
     print "Reload parameter must be yes or no.\n"; exit(1);
 }
 
+// 3 Node number - Test for integer
+if(filter_var($argv[3], FILTER_VALIDATE_INT)) {
+    $nodeNumber = $argv[3];
+} else {
+    "Node number must be integer.\n"; exit(1);
+}
+
+// 4 file alias - Test for valid characters
 #$namePattern = '/^[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9]+)?$/';
 $pattern = '/^[a-zA-Z0-9_-]+$/';
-if (! filter_var($argv[3], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
-    print "File has illegal characters.\n"; exit(1);
+if (filter_var($argv[4], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
+    $fileAlias = $argv[4];
+} else {
+    print "File allias has illegal characters.\n"; exit(1);
 }
 
-// Test for valid file in files array
-if (array_key_exists($argv[3], $validFiles)) {
-    $fileAlias = $argv[3];
+// 5 cmd alias - Test for valid chacters
+$pattern = '/^[a-zA-Z0-9\._:=]+$/';
+if (filter_var($argv[5], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
+    $cmdAlias = $argv[5];
 } else {
-    print "Opps, $argv[3] is not a valid config file.\n"; exit(1);
+    print "Command alias has illegal characters.\n"; exit(1);
 }
 
-// Test for valid command in commands array
-if (array_key_exists($argv[4], $validCommands)) {
-    $cmdAlias = $argv[4];
-} else {
-    print "Opps, $argv[4] is not a valid command.\n"; exit(1);
+/**********  Validate file alias input **********/
+if (! array_key_exists($fileAlias, $validFiles)) {
+    print "Opps, $fileAlias is not a valid config file.\n"; exit(1);
+}
+
+/**********  Validate command alias input **********/
+$t = explode('=', $cmdAlias);
+print_r($t);
+if (count($t) == 2 ) {
+    $cmdAlias = $t[0];
+    $cmdParameter = $t[1];
+}
+if (! array_key_exists($cmdAlias, $validCommands)) {
+    print "Opps, $cmdAlias is not a valid command.\n"; exit(1);
 }
 
 /********** Read settings ini file **********/
@@ -54,8 +80,8 @@ if (!file_exists('settings.ini')) {
     die("Couldn't load ini file.\n");
 }
 $config = parse_ini_file('settings.ini', true);
-if (! array_key_exists($localnode, $config)) {
-    print "Opps, $localnode is not in settings.ini\n"; exit(1);
+if (! array_key_exists($hostLookup, $config)) {
+    print "Opps, $hostLookup is not in settings.ini\n"; exit(1);
 }
 #print_r($config);
 
@@ -70,25 +96,29 @@ print "validCommand: $validCommand\n";
 exit;
  */
 /********** Open a socket and login to Asterisk Manager **********/
-$fp = AMIconnect($config[$localnode]['host']);
+$fp = AMIconnect($config[$hostLookup]['host']);
 if (FALSE === $fp) {
 	die("Could not connect to Asterisk Manager.\n\n");
 } else {
-    print "Connected to $localnode\n";
+    print "Connected to $hostLookup\n";
 }
-if (FALSE === AMIlogin($fp, $config[$localnode]['user'], $config[$localnode]['passwd'])) {
+if (FALSE === AMIlogin($fp, $config[$hostLookup]['user'], $config[$hostLookup]['passwd'])) {
 	die("Could not login to Asterisk Manager.");
 } else {
-    print "Logged in to $localnode\n";
+    print "Logged in to $hostLookup\n";
 }
 
 /********** Update command place holders **********/
-$cmdString = str_replace('m-localnode', $localnode, $validCommand);
-#print "$cmdString\n";
+$cmdString = str_replace('m-nodeNumber', $nodeNumber, $validCommand);
+if (!empty($cmdParameter)) {
+    $cmdString = str_replace('m-parameter', $cmdParameter, $cmdString);
+}
+print "$cmdString\n";
 
 // Send to AMI
 $srcFile = $validFile;
-$dstFile = 'test.txt';
-$rptStatus = AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString);
+$dstFile = $validFile;
+$srcFile = 'test.txt'; $dstFile = 'test.txt';
+$amiStatus = AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString);
 
-print_r($rptStatus);
+print_r($amiStatus);
