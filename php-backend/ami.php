@@ -14,7 +14,7 @@ include('include.php');
 
 /********** Validate CLI input **********/
 #var_dump($argc);
-print_r($argv);
+#print_r($argv);
 if ($argc != 6) {
     print "Usage: hostlookup reload file node fileAlias cmdAlias[=parameter]\n"; exit(1);
 };
@@ -66,7 +66,7 @@ if (! array_key_exists($fileAlias, $validFiles)) {
 
 /**********  Validate command alias input **********/
 $t = explode('=', $cmdAlias);
-print_r($t);
+#print_r($t);
 if (count($t) == 2 ) {
     $cmdAlias = $t[0];
     $cmdParameter = $t[1];

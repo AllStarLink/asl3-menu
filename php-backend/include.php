@@ -12,7 +12,8 @@ $validFiles = array(
 	'test' => 'test.txt'
 );
 $validCommands = array(
-    'add_node' =>     "Action-000000: NewCat\r\nCat-000000: m-nodeNumber\r\nOptions-000000: inherit='node-main'\r\n",
+    'asl_node_create' =>   "Action-000000: NewCat\r\nCat-000000: m-nodeNumber\r\nOptions-000000: inherit='node-main'\r\nAction-000001: Append\r\nCat-000001: nodes\r\nVar-000001: m-nodeNumber\r\nValue-000001: radio@m-parameter/m-nodeNumber,NONE\r\n",
+	'asl_node_delete' =>   "Action-000000: DelCat\r\nCat-000000: m-nodeNumber\r\nAction-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: m-nodeNumber\r\n",
     'add_susb' =>     "Action-000000: Append\r\nCat-000000: m-nodeNumber\r\nVar-000000: rxchannel\r\nValue-000000: SimpleUSB/usb_m-nodeNumber\r\n",
     'add_statpost' => "Action-000000: Append\r\nCat-000000: m-nodeNumber\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
     'add_nodes' =>    "Action-000000: Append\r\nCat-000000: nodes\r\nVar-000000: m-nodeNumber\r\nValue-000000: radio@m-parameter/m-nodeNumber,NONE\r\n",
