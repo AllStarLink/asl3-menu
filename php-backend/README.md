@@ -1,5 +1,5 @@
-# Php
-This directory contains php CLI scripts using the AMI UpdateConfig action (https://asterisk.phreaknet.org/#manageraction-UpdateConfig). These scripts are used as a backend to a  menu and do not provide a user interface.  
+# Php Backend
+This directory contains php CLI scripts using the AMI UpdateConfig action (https://asterisk.phreaknet.org/#manageraction-UpdateConfig). These scripts are used as a backend to a  menu and do not provide a user interface.
 
 ## ami.php
 Usage is `ami.php host reload node file cmd[=parameter]` where:
