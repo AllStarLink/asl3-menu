@@ -417,8 +417,8 @@ do_select_interface() {
 		--title "$TITLE"						\
 		--menu "Select Radio Interface"					\
 		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT				\
-		--cancel-button "Back"						\
 		--ok-button "Select"						\
+		--cancel-button "Back to Node Setup"				\
 	        "1" "SimpleUSB    : CM1xx USB Cards no/DSP (URIx or RA-40)"	\
 	        "2" "USBRadio     : CM1xx USB Cards with DSP (URIx or RA-40)"	\
 	        "3" "RTCM         : Radio Thin Client or Voter Boards"		\
@@ -642,7 +642,12 @@ do_allstar_node_setup_menu() {
         calc_wt_size
         get_node_settings
 
-        ANSWER=$(whiptail --title "$TITLE" --menu "AllStar Node Setup Menu" $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT --cancel-button Back --ok-button Select \
+        ANSWER=$(whiptail					\
+		    --title "$TITLE"				\
+		    --menu "AllStar Node Setup Menu"		\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
+		    --ok-button "Select"			\
+		    --cancel-button "Back to Node Setup"	\
             "1" "Duplex type      : $CURRENT_DUPLEX"		\
             "2" "Node number      : $CURRENT_NODE"		\
             "3" "Node password    : $CURRENT_PASSWD"		\

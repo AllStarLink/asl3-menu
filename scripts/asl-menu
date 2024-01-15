@@ -1,0 +1,756 @@
+#!/bin/bash
+# ASL-MENU
+# V2.1
+# 2018 May
+# By N8THN
+# Modifications by KK9ROB 2021/02/25
+# Extensive Mods by WD6AWP April & May 2021
+# ASL3 rework/updates by WA3WCO Jan 2024
+
+REBOOT_NEEDED=0
+AST_RESTART=0
+BACKUP_DIR="${DESTDIR}/var/asl-backups"
+CONFIG_DIR="${DESTDIR}/etc/asterisk"
+
+ASTERISK=/usr/sbin/asterisk
+ASTRES=/usr/sbin/astres.sh
+ASTUP=/usr/sbin/astup.sh
+ASTDN=/usr/sbin/astdn.sh
+
+UPDATE_NODELIST=asl3-update-nodelist
+
+SAVENODE=/usr/sbin/save-node
+RESTORENODE=/usr/sbin/restore-node
+
+MSGBOX_HEIGHT=12
+MSGBOX_WIDTH=60
+TITLE="AllStarLink 3.0.0"
+
+#logfile=/dev/null
+logfile=/tmp/asl-menu.log
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+check_if_root() {
+    if [[ $EUID != 0 ]]; then
+	whiptail --msgbox "This script must be run as root or with sudo" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	exit 1
+    fi
+}
+
+check_configuration() {
+    if [[ ! -f $CONFIG_DIR/rpt.conf ]]; then
+	whiptail --msgbox "Expected configuration files not found in \"$CONFIG_DIR\" directory" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	exit 1
+    fi
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+calc_wt_size() {
+    echo "doing calc_wt_size" >>$logfile
+
+    # Bash knows the terminal size
+    #	The number of columns are $COLUMNS
+    #	The number of lines are $LINES
+
+    if [[ $LINES -lt 22 ]]; then
+	echo "Terminal size must be at least 22 lines."
+	exit 1
+    fi
+    if [[ $COLUMNS -lt 60 ]]; then
+	echo "Terminal size must be at least 60 columns."
+	exit 1
+    fi
+
+    WT_HEIGHT=22
+
+    # Leave full width up to 100 columns
+    WT_WIDTH=$COLUMNS
+    if [[ $COLUMNS -gt 100 ]]; then
+	WT_WIDTH=100
+    fi
+
+    WT_MENU_HEIGHT=$(($WT_HEIGHT - 8))
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+get_node_info() {
+    echo "get_node_info" >>$logfile
+
+
+    REALID=$(who am i | awk '{print $1}')
+    if [ $REALID == "root" ]; then
+	HOMEDIR=/$REALID
+    else
+	HOMEDIR="/home/$REALID"
+    fi
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+##########################
+## Configuration checks ##
+##########################
+
+do_finish() {
+    echo "do_finish" >>$logfile
+
+    if [ $REBOOT_NEEDED -eq 1 ]; then
+	whiptail		\
+	    --title "$TITLE"	\
+	    --yesno "Reboot required for changes to take effect.\n\nReboot now?"	
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $? -eq 0 ]; then # yes
+	    sync
+	    reboot -t 30
+	else
+	    whiptail		\
+		--msgbox "You may reboot the machine at your convenience."	\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
+	fi
+    fi
+
+    if [ $AST_RESTART -eq 1 ]; then
+	whiptail --title "$TITLE" --yesno "Asterisk reload is required for changes to take effect.\n\nRestart Asterisk now?" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $? -eq 0 ]; then #yes
+	    $ASTRES
+	    whiptail --msgbox "Asterisk has been restarted." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
+	    whiptail --msgbox "Please restart Asterisk at your convenience." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	fi
+    fi
+
+    whiptail			\
+	--title "$TITLE"	\
+	--defaultno		\
+	--yesno "If you exit you may type \"asl-menu\" to relaunch this menu.\n\nExit ASL Main Menu now?"	\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    if [ $? -eq 0 ]; then
+	exit
+    fi
+
+    return
+}
+
+###################################
+## main menu simple subfunctions ##
+###################################
+
+do_node_setup() {
+    echo "do_node_setup" >>$logfile
+
+    /usr/sbin/node-setup
+}
+
+do_asterisk_cli() {
+    echo "do_asterisk_cli" >>$logfile
+
+    whiptail									\
+	--title "$TITLE"							\
+	--msgbox "Entering the Asterisk CLI.\n\nType \"exit\" when done." 	\
+	MSGBOX_HEIGHT $MSGBOX_WIDTH
+    clear
+    $ASTERISK -rvvv
+}
+
+do_bash_shell() {
+    echo "do_bash_shell" >>$logfile
+
+    whiptail									\
+	--title "$TITLE"							\
+	--msgbox "Entering a bash shell. Be careful, you are running as the \"root\" user!\n\nType \"exit\" when done."	\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+
+    clear
+    /bin/bash
+}
+
+do_reboot() {
+    echo "do_reboot" >>$logfile
+
+    whiptail									\
+	--title "$TITLE"							\
+	--defaultno								\
+	--yesno "Are you sure you would like to reboot the server?"		\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    if [ $? -eq 0 ]; then
+	sync
+	sleep 1
+	/usr/sbin/shutdown -r now
+    fi
+}
+
+do_shutdown() {
+    echo "do_shutdown" >>$logfile
+
+    whiptail									\
+	--title "$TITLE"							\
+	--defaultno								\
+	--yesno "Are you sure you would like to shutdown the server?"		\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    if [ $? -eq 0 ]; then
+	whiptail								\
+	    --title "$TITLE"							\
+	    --defaultno								\
+	    --yesno "WARNING! Physical access to server will be needed to power the system back on.\n\nAre you still sure you want to shutdown the server?"	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $? -eq 0 ]; then
+	    sync
+	    sleep 1
+	    /usr/sbin/shutdown -h now
+	fi
+    fi
+}
+
+do_logout() {
+    whiptail									\
+	--title "$TITLE"							\
+	--defaultno								\
+	--yesno "To logout, select <Yes> and then type \"logout\"."		\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    if [ $? -eq 0 ]; then
+	exit
+    fi
+}
+
+###################################
+## Diagnostics menu sub sections ##
+###################################
+
+do_astdn() {
+    echo "do_astdn" >>$logfile
+
+    result=$($ASTDN)
+    whiptail --msgbox "$result" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    AST_RESTART=0
+}
+
+do_astres() {
+    echo "do_astres" >>$logfile
+
+    result=$($ASTRES)
+    whiptail --msgbox "$result" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    AST_RESTART=0
+}
+
+do_astup() {
+    echo "do_astup" >>$logfile
+
+    result=$($ASTUP)
+    whiptail --msgbox "$result" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+}
+
+do_ping_google_dns() {
+    echo "do_ping_google_dns" >>$logfile
+
+    clear
+    echo "Please wait..."
+    PINGRESULTS=$(ping 8.8.8.8 -c4)
+    whiptail --msgbox "DNS ping results:\n\n$PINGRESULTS" $WT_HEIGHT $WT_WIDTH
+}
+
+do_ping_asl_register() {
+    echo "do_ping_asl_register" >>$logfile
+
+    clear
+    echo "Please wait..."
+    PINGRESULTS=$(ping register.allstarlink.org -c4)
+    whiptail --msgbox "register.allstarlink.org ping results:\n\n$PINGRESULTS" $WT_HEIGHT $WT_WIDTH
+}
+
+do_asl_show_registrations() {
+    echo "do_asl_show_registrations" >>$logfile
+
+    clear
+    echo "Please wait..."
+    RPTSHOWREG=$($ASTERISK -rx "rpt show registrations")
+    IAXSHOWREG=$($ASTERISK -rx "iax2 show registry")
+    whiptail --msgbox "AllStar registrations:\n\n\"rpt show registrations\"\n\n$RPTSHOWREG\n\n\"iax2 show registrations\"\n\n$IAXSHOWREG" $WT_HEIGHT $WT_WIDTH
+}
+
+do_asl_show_version() {
+    echo "do_asl_show_version" >>$logfile
+
+    clear
+    echo "Please wait..."
+    ASLVERS=$($ASTERISK -rx "core show version")
+    whiptail --msgbox "ASL Version:\n\n$ASLVERS" $WT_HEIGHT $WT_WIDTH
+}
+
+do_validate_updatenodelist_running() {
+    echo "do_validate_updatenodelist_running" >>$logfile
+
+    # check to see that the ".service" is enabled and the ".timer" is running
+    systemctl is-enabled --quiet ${UPDATE_NODELIST}.service
+    if [ $? -eq 0 ]; then #yes
+	systemctl is-active --quiet ${UPDATE_NODELIST}.timer
+	if [ $? -eq 0 ]; then #yes
+	    whiptail --msgbox "The $UPDATE_NODELIST service IS running." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
+	    whiptail --msgbox "The $UPDATE_NODELIST service is NOT running." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	fi
+    else
+	whiptail --msgbox "The $UPDATE_NODELIST service is NOT enabled." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    fi
+}
+
+do_updatenodelist_restart() {
+    echo "do_updatenodelist_restart" >>$logfile
+
+    systemctl restart --quiet ${UPDATE_NODELIST}.service
+    RC=$?
+    if [ $RC -eq 0 ]; then #yes
+	whiptail --msgbox "$UPDATE_NODELIST service restarted." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    else
+	whiptail --msgbox "$UPDATE_NODELIST service restart failed (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    fi
+}
+
+####################
+## OS subsections ##
+####################
+
+do_savenode() {
+    echo "do_savenode" >>$logfile
+
+    $SAVENODE
+}
+
+do_restorenode() {
+    echo "do_restorenode" >>$logfile
+
+    $RESTORENODE
+}
+
+do_local_conf_backup() {
+    echo "do_local_conf_backup" >>$logfile
+
+    FILEDATENAME=$(date +ASL_%Y-%m-%d_%H%M)
+
+    whiptail --title "$TITLE" --yesno "Local backup to file $FILEDATENAME?" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    if [ $? -eq 0 ]; then
+	if [ ! -d $BACKUP_DIR ]; then
+	    mkdir $BACKUP_DIR
+	fi
+	cd / && tar czf $BACKUP_DIR/$FILEDATENAME.tgz --exclude='*.tgz' etc/asterisk >/dev/null
+
+	chmod og+r $BACKUP_DIR/$FILEDATENAME.tgz
+
+	whiptail --msgbox "Backup $BACKUP_DIR/$FILEDATENAME.tgz complete." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    fi
+}
+
+do_local_conf_restore() {
+    calc_wt_size
+    echo "do_local_conf_restore" >>$logfile
+    AST_RESTART=0
+
+    #Build array of /etc/asterisk/*.tgz files
+    shopt -s nullglob
+    filearr=($BACKUP_DIR/*.tgz)
+    file_count=${#filearr[@]}
+    #echo ${#filearr[@]}
+    #echo ${filearr[@]}
+
+    # Restrict menu height to 10 backups
+    if [ $file_count -gt 10 ]; then
+	WT_MENU_HEIGHT=10
+    else
+	WT_MENU_HEIGHT=$file_count
+    fi
+
+    # build array of backups for radiolist
+    if [ $file_count -eq 0 ]; then
+	whiptail --msgbox "No available backups to restore." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    else
+	newarr=()
+	for i in ${!filearr[@]}; do
+	    #set last file to ON (selected)
+	    if [ $((i + 1)) -eq ${#filearr[@]} ]; then
+		ONOFF="ON"
+	    else
+		ONOFF="OFF"
+	    fi
+	    newarr+=("${filearr[$i]}" "" "$ONOFF")
+	done
+    fi
+    #echo ${newarr[@]}; exit
+
+    # select file for restore
+    if [ $file_count -ne 0 ]; then
+	selected_file=$(whiptail --title "$TITLE" --radiolist "Restore: Use arrow keys to scroll. Space bar to select." $WT_HEIGHT 66 $WT_MENU_HEIGHT "${newarr[@]}" 3>&1 1>&2 2>&3)
+	if [ $? = 0 ]; then
+	    cd / && tar xzf $selected_file
+	    AST_RESTART=1
+	    whiptail --msgbox "The $selected_file file has been restored." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	fi
+    fi
+}
+
+do_local_conf_delete() {
+    echo "do_local_conf_delete" >>$logfile
+    #Build array of /etc/asterisk/*.tgz files
+    shopt -s nullglob
+    filearr=($BACKUP_DIR/ASL*.tgz)
+    file_count=${#filearr[@]}
+
+    # Restrict menu height to 10 backups
+    if [ $file_count -gt 10 ]; then
+	WT_MENU_HEIGHT=10
+    else
+	WT_MENU_HEIGHT=$file_count
+    fi
+
+    # build array of backups for radiolist
+    if [ $file_count -eq 0 ]; then
+	whiptail --msgbox "No available backups to restore." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    else
+	newarr=()
+	for i in ${!filearr[@]}; do
+	    #set last file to ON (selected)
+	    if [ $((i + 1)) -eq ${#filearr[@]} ]; then
+		ONOFF="ON"
+	    else
+		ONOFF="OFF"
+	    fi
+	    newarr+=("${filearr[$i]}" "" "$ONOFF")
+	done
+    fi
+
+    # select and confirm delete
+    if [ $file_count -ne 0 ]; then
+	selected_file=$(whiptail --title "$TITLE" --radiolist "Delete: Use arrow keys to scroll. Space bar to select." $WT_HEIGHT 66 $WT_MENU_HEIGHT "${newarr[@]}" 3>&1 1>&2 2>&3)
+	if [ $? = 0 ]; then
+	    whiptail --title "$TITLE" --yesno "Confirm delete you want to delete backup file $selected_file?" --defaultno $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    if [ $? = 0 ]; then
+		cd / && rm -f $selected_file
+		whiptail --msgbox "The backup file $selected_file has been deleted." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    fi
+	fi
+    fi
+}
+
+do_webserver_backup() {
+    echo "do_webserver_backup" >>$logfile
+
+    if [ -f /usr/bin/backup-server/router.php ]; then
+	GLOBALIP=$(ip a | grep "scope global" | grep -Po '(?<=inet )[\d.]+')
+
+	whiptail --msgbox "Open a web browser on separate computer and go to http://$GLOBALIP:8080 \n\nUse ctrl c to close the backup-server" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	/usr/bin/backup-server/backup-server.sh
+    #	    cd /usr/sbin/backup-server && sudo -u nobody /usr/bin/php -S 0.0.0.0:8080 -t . router.php
+    else
+	whiptail --msgbox "The backup-server software does not seem to be installed" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    fi
+}
+
+do_enable_login_menu() {
+    echo "do_enable_login_menu" >>$logfile
+
+    grep -q "^sudo /usr/sbin/asl-menu$" $HOMEDIR/.bashrc >/dev/null 2>&1
+    RC=$?
+    case $RC in
+	0 ) # Remove line
+	    sed -i "/^sudo \/usr\/sbin\/asl-menu/d" $HOMEDIR/.bashrc;
+	    whiptail										\
+		--title "$TITLE"								\
+		--msgbox "The ASL \"menu\" will no longer be started at login for user \"$REALID\". You may set this again by selecting this menu item again."	\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    ;;
+	1 ) # Add line
+	    echo "sudo /usr/sbin/asl-menu" >> $HOMEDIR/.bashrc
+	    whiptail										\
+		--title "$TITLE"								\
+		--msgbox "The ASL \"menu\" will now start at login for user \"$REALID\"."	\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    ;;
+	* ) whiptail										\
+		--title "$TITLE"								\
+		--msgbox "The ASL \"menu\" settings failed (exit code $RC)."			\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    ;;
+    esac
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+info_main_menu() {
+    echo "info_main_menu" >>$logfile
+
+    read -r -d '' text << EOT
+AllStarLink Main Menu Information
+
+Welcome to the AllStarLink Main Menu. Use the arrow keys to scroll this text. To exit, press the TAB key to select <Ok> and then press ENTER.
+
+For new node installs you will want to select Menu Item 1. This is where you configure the basic settings needed to get your new node on the air. Of course, you can make changes here later should the need arise. Advanced options may be set up with Menu Item 5, the Expert Configuration Menu. But, don't worry about that advanced stuff just yet.
+
+The bash shell, Menu Item 2, provides access to the Linux command line interface, also known as the Linux CLI. This is for experts or if you have been provided with CLI instructions.
+
+The Asterisk CLI provides direct access to the heart of what makes an AllStar node. You might use the *CLI for testing, troubleshooting, or for control of your node. This is pretty advanced stuff but the good news is that much of this can be done from the Diagnositics Menu or with one of the web management/monitoring applications (e.g. Allmon, Supermon).
+
+AllStarLink is supported on our community web site. If you'd like further information or help please visit https://community.allstarlink.org
+EOT
+
+    whiptail --title "$TITLE" --scrolltext --msgbox "$text" $WT_HEIGHT $WT_WIDTH
+}
+
+do_main_menu() {
+    echo "do_main_menu" >>$logfile
+
+    while true; do
+	calc_wt_size
+	ANSWER=$(whiptail					\
+		    --title "$TITLE"				\
+		    --menu "AllStarLink Main Menu"		\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
+		    --ok-button "Select"			\
+		    --cancel-button "Exit Main Menu"		\
+		    "1" "Node Settings"				\
+		    "2" "Enter a bash shell as root"		\
+		    "3" "Enter the Asterisk CLI"		\
+		    "4" "Diagnostics Menu"			\
+		    "5" "Expert Configuration Menu"		\
+		    "6" "Backup and Restore Menu"		\
+		    "7" "Logout/Reboot/Shutdown"		\
+		    "8" "Enable/disable ASL Menu at login"	\
+		    "I" "Information and help text"		\
+		3>&1 1>&2 2>&3)
+	if [ $? -ne 0 ]; then
+	    do_finish
+	    continue
+	fi
+
+	case "$ANSWER" in
+	    1)	do_node_setup					;;
+	    2)	do_bash_shell					;;
+	    3)	do_asterisk_cli					;;
+	    4)	do_sys_diags_menu				;;
+	    5)	do_conf_edit_menu				;;
+	    6)	do_backup_restore_menu				;;
+	    7)	do_logout_menu					;;
+	    8)	do_enable_login_menu				;;
+	    I)	info_main_menu					;;
+	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	esac
+    done
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+info_config_menu() {
+    echo "info_config_menu" >>$logfile
+
+    read -r -d '' text << EOT
+Expert Configuration Menu Information
+
+Editing configuration files requires detailed knowledge of Asterisk and app_rpt settings.
+
+Please make a back of your settings before editing any files. You may make a backup from Menu Item "C" or from the ASL Main Menu.
+EOT
+
+    whiptail --title "$TITLE" --scrolltext --msgbox "$text" $WT_HEIGHT $WT_WIDTH
+}
+
+do_conf_edit_menu() {
+    echo "do_conf_edit_menu" >>$logfile
+
+    # Look for sensible-editor, which should be part of Raspbian
+    if [ -x /usr/bin/sensible-editor ]; then
+	editor=/usr/bin/sensible-editor
+    else
+	Otherwise try to find editor which should be part of alternatives system on Debian
+	ALT_EDIT=`which editor`
+	# Then determine editor with order of precedence
+	editor=${EDITOR:-${ALT_EDIT:-nano}}
+    fi
+
+    while true; do
+	calc_wt_size
+	ANSWER=$(whiptail						\
+		    --title "$TITLE"					\
+		    --menu "Expert Configuration Menu"			\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+		    --ok-button "Select"				\
+		    --cancel-button "Back to Main" 			\
+		    "1"  "Edit rpt.conf file"	 			\
+		    "2"  "Edit rpt_http_registrations.conf file"	\
+		    "3"  "Edit iax.conf file"	 			\
+		    "4"  "Edit extensions.conf file"	 		\
+		    "5"  "Edit modules.conf file"	 		\
+		    "6"  "Edit manager.conf file"	 		\
+		    "7"  "Edit echolink.conf file"	 		\
+		    "8"  "Edit usbradio.conf file"	 		\
+		    "9"  "Edit simplusb.conf file"	 		\
+		    "10" "Edit voter.conf file, RTCM users"		\
+		    "11" "Edit savenode.conf"	 			\
+		    "C"  "Create a local backup"			\
+		    "R"  "Restore a local backup"			\
+		    "I"  "Information"	 				\
+		    3>&1 1>&2 2>&3)
+	if [ $? -ne 0 ]; then
+	    return
+	fi
+
+	case "$ANSWER" in
+	    1)	$editor $CONFIG_DIR/rpt.conf				;;
+	    2)	$editor $CONFIG_DIR/rpt_http_registrations.conf		;;
+	    3)	$editor $CONFIG_DIR/iax.conf				;;
+	    4)	$editor $CONFIG_DIR/extensions.conf			;;
+	    5)	$editor $CONFIG_DIR/modules.conf			;;
+	    6)	$editor $CONFIG_DIR/manager.conf			;;
+	    7)	$editor $CONFIG_DIR/echolink.conf			;;
+	    8)	$editor $CONFIG_DIR/usbradio.conf			;;
+	    9)	$editor $CONFIG_DIR/simpleusb.conf			;;
+	    10)	$editor $CONFIG_DIR/voter.conf				;;
+	    11)	$editor $CONFIG_DIR/savenode.conf			;;
+	    C)	do_savenode						;;
+	    R)	do_restorenode						;;
+	    I)	info_config_menu					;;
+	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	esac
+    done
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+info_diagnostics_menu() {
+    echo "info_diagnostics_menu" >>$logfile
+
+    read -r -d '' text << EOT
+Tools to help diagnose a possibly problem with you configuration.
+EOT
+
+    whiptail --title "$TITLE" --scrolltext --msgbox "$text" $WT_HEIGHT $WT_WIDTH
+}
+
+do_sys_diags_menu() {
+    echo "do_sys_diags_menu" >>$logfile
+
+    while true; do
+	calc_wt_size
+	ANSWER=$(whiptail					\
+		    --title "$TITLE"				\
+		    --menu "System Diagnostics Menu"		\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
+		    --ok-button "Select"			\
+		    --cancel-button "Back to Main" 		\
+		    "1" "Ping Google DNS (8.8.8.8)"		\
+		    "2" "Ping register.allstarlink.org"		\
+		    "3" "Show Asterisk version"			\
+		    "4" "Show Asterisk/AllStar registrations"	\
+		    "5" "Restart Asterisk"			\
+		    "6" "Start Asterisk"			\
+		    "7" "Stop Asterisk"				\
+		    "8" "Check the update node list service"	\
+		    "9" "Restart the update node list service"	\
+		    3>&1 1>&2 2>&3)
+	if [ $? -ne 0 ]; then
+	    return
+	fi
+
+	case "$ANSWER" in
+	    1)	do_ping_google_dns				;;
+	    2)	do_ping_asl_register				;;
+	    3)	do_asl_show_version				;;
+	    4)	do_asl_show_registrations			;;
+	    5)	do_astres					;;
+	    6)	do_astup					;;
+	    7)	do_astdn					;;
+	    8)	do_validate_updatenodelist_running		;;
+	    9)	do_updatenodelist_restart			;;
+	    I)	info_diagnostics_menu				;;
+	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	esac
+    done
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+info_backup_restore_menu() {
+    echo "info_backup_restore_menu" >>$logfile
+
+    read -r -d '' text << EOT
+Savenode - this command will create a backup archive of your configuration. The files are stored in the \"${BACKUP_DIR}\" directory  in .tgz format.  After a backup is created you will have the option to upload to archive to an ASL backup server.
+
+Restore node - displays a list from the ASL backup archives containing configurations you can restore.  You will also be able to download and restore an archive stored on the ASL backup server.
+EOT
+
+    whiptail --title "$TITLE" --scrolltext --msgbox "$text" $WT_HEIGHT $WT_WIDTH
+}
+
+do_backup_restore_menu() {
+    echo "do_backup_restore_menu" >>$logfile
+
+    while true; do
+	calc_wt_size
+	ANSWER=$(whiptail							\
+		    --title "$TITLE"						\
+		    --menu "Backup/Restore Menu"				\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT			\
+		    --ok-button "Select"					\
+		    --cancel-button "Back to Main"				\
+		    "1" "Backup node to https://backup.allstarlink.org"		\
+		    "2" "Restore node from https://backup.allstarlink.org"	\
+		    "3" "Backup node to local file"				\
+		    "4" "Restore node from local backup files"			\
+		    "5" "Delete a local backup file"				\
+		    "I" "Information"						\
+		    3>&1 1>&2 2>&3)
+	if [ $? -ne 0 ]; then
+	    return
+	fi
+
+	case "$ANSWER" in
+	    1)	do_savenode							;;
+	    2)	do_restorenode							;;
+	    3)	do_local_conf_backup						;;
+	    4)	do_local_conf_restore						;;
+	    5)	do_local_conf_delete						;;
+	    6)	do_webserver_backup						;;
+	    I)	info_backup_restore_menu					;;
+	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	esac
+    done
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_logout_menu() {
+    echo "do_logout_menu" >>$logfile
+
+    while true; do
+	calc_wt_size
+	ANSWER=$(whiptail						\
+		    --title "$TITLE"					\
+		    --menu "Exit Menu"					\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+		    --ok-button "Select"				\
+		    --cancel-button "Back to Main"			\
+		    "1" "Shutdown Server"				\
+		    "2" "Reboot Server"					\
+		    "3" "Restart Asterisk"				\
+		    "4" "Exit and Logout"				\
+		    3>&1 1>&2 2>&3)
+	if [ $? -ne 0 ]; then
+	    return
+	fi
+
+	case "$ANSWER" in
+	    1)	do_shutdown						;;
+	    2)	do_reboot						;;
+	    3)	do_astres						;;
+	    4)	do_logout						;;
+	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	esac
+    done
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+/usr/bin/clear
+check_if_root
+get_node_info
+check_configuration
+do_main_menu
