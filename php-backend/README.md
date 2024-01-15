@@ -26,6 +26,8 @@ The cmd aliases are shortcuts to "canned" AMI commands to ease validation and us
 - add_statpost: Adds `statpost_url=http://stats.allstarlink.org/uhandler` to specified node
 
 ### Example
-- `ami.php localhost No 2000 rpt add_node`
+- `ami.php localhost No 2000 rpt asl_node_create=127.0.0.1:4569`
+- `ami.php localhost No 2000 rpt asl_node_delete`
+- `ami.php localhost No 2000 rpt asl_node_change=1000`
 - `ami.php localhost No 2000 rpt add_nodes=127.0.0.1:4569`
 - `ami.php localhost No 2000 rpt add_statpost`
