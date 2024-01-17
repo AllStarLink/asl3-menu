@@ -16,18 +16,24 @@ Currently the output is witten to /etc/asterisk/test.conf. Any changes can then 
 To test: edit the settings.ini and run the script.
 
 ## Privilege Escalations
-`live_dangerously = yes` in asterisk.conf is necessary if using these AMI commands.
+`live_dangerously = yes` in asterisk.conf is necessary to use these AMI commands.
 https://docs.asterisk.org/Configuration/Dialplan/Privilege-Escalations-with-Dialplan-Functions/
 
-## cmd Aliases
+## Cmd Aliases
 The cmd aliases are shortcuts to "canned" AMI commands to ease validation and usage.
-- add_node: Adds a new node category with template, ie `[2000](node-main)`
-- add_nodes: Adds line to [nodes] category, ie `2000 = radio@127.0.0.1/2000,NONE`
-- add_statpost: Adds `statpost_url=http://stats.allstarlink.org/uhandler` to specified node
+- rpt_node_create: Adds a new [nodeNumber] section with template and updates [nodes] section.
+- rpt_node_rename: Updates the [nodeNumber] and the [nodes] sections.
+- rpt_node_delete: Deletes the [nodeNumber] section and removes the entry from the [nodes] sections.
+- ami_secret_change: Updates the AMI password for given user.
 
-### Example
-- `ami.php localhost No 2000 rpt asl_node_create=127.0.0.1:4569`
-- `ami.php localhost No 2000 rpt asl_node_delete`
-- `ami.php localhost No 2000 rpt asl_node_change=1000`
-- `ami.php localhost No 2000 rpt add_nodes=127.0.0.1:4569`
-- `ami.php localhost No 2000 rpt add_statpost`
+## File Aliases
+These are shortcuts and allowed configs ami.php has access to. Short list so far.
+- `rpt = /etc/asterisk/rpt.conf`
+- `ami = /etc/asterisk/manger.conf`
+- `test = /etc/asterisk/test.txt` is a special case for you know what.
+
+### Examples
+- `ami.php localhost No test rpt_node_create 2000 127.0.0.1:4569`
+- `ami.php localhost No test rpt_node_delete 2000`
+- `ami.php localhost No test rpt_node_rename 2000 1000 127.0.0.1:4569`
+- `ami.php localhost no test ami_secret_change admin AneWSecret`

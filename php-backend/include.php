@@ -2,25 +2,114 @@
 //error_reporting(0);
 
 // List of app_rpt allowed AMI commands and allowed .conf files.
-// the m-somethings are "templates" for str_replace
+// the M-somethings are "templates" for str_replace
 $validFiles = array(
 	'rpt' => 'rpt.conf',
 	'susb' => 'simpleusb.conf',
-	'susb_tune' => 'simple_tune_usb_m-nodeNumber.conf',
+	'susb_tune' => 'simple_tune_usb_M-Category.conf',
 	'subradio' => 'usbradio.conf',
-	'usbradio_tune'=> 'usbdario_tune_usb_m-nodeNumber.conf',
+	'usbradio_tune'=> 'usbdario_tune_usb_M-Category.conf',
+	'ami' => "manager.conf",
 	'test' => 'test.txt'
 );
-$validCommands = array(
-    'asl_node_create' =>   "Action-000000: NewCat\r\nCat-000000: m-nodeNumber\r\nOptions-000000: inherit='node-main'\r\nAction-000001: Append\r\nCat-000001: nodes\r\nVar-000001: m-nodeNumber\r\nValue-000001: radio@m-parameter/m-nodeNumber,NONE\r\n",
-	'asl_node_delete' =>   "Action-000000: DelCat\r\nCat-000000: m-nodeNumber\r\nAction-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: m-nodeNumber\r\n",
-	'asl_node_change' =>   "Action-000000: RenameCat\r\nCat-000000: m-nodeNumber\r\nValue-000000: m-parameter\r\n",
-    'add_susb' =>     "Action-000000: Append\r\nCat-000000: m-nodeNumber\r\nVar-000000: rxchannel\r\nValue-000000: SimpleUSB/usb_m-nodeNumber\r\n",
-    'add_statpost' => "Action-000000: Append\r\nCat-000000: m-nodeNumber\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
-    'add_nodes' =>    "Action-000000: Append\r\nCat-000000: nodes\r\nVar-000000: m-nodeNumber\r\nValue-000000: radio@m-parameter/m-nodeNumber,NONE\r\n",
-	'rm_susb'  =>     "Action-000000: Delete\r\nCat-000000: m-nodeNumber\r\nVar-000000: rxchannel\r\n",
-	'rm_statpost'  => "Action-000000: Delete\r\nCat-000000: m-nodeNumber\r\nVar-000000: statpost_url\r\n",
+$validCommands = array (
+	'rpt_node_create' =>  array(
+		'count'  => 2,
+		'prompt' => "NodeNumber IPaddress[:port]",
+		'string' => "Action-000000: NewCat\r\nCat-000000: M-Param1\r\nOptions-000000: inherit='node-main'\r\nAction-000001: Append\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\nValue-000001: radio@M-Param2/M-Param1,NONE\r\n"
+	),
+	'rpt_node_delete' =>  array(
+		'count'  => 1,
+		'prompt' => "NodeNumber",
+		'string' => "Action-000000: DelCat\r\nCat-000000: M-Param1\r\nAction-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\n",
+	),
+	'rpt_node_rename' =>  array(
+		'count'  => 3,
+		'prompt' => "OldNodeNumber NewNodeNumber IPaddress[:port]",
+		'string' => "Action-000000: RenameCat\r\nCat-000000: M-Param1\r\nValue-000000: M-Param2\r\nAction-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\nAction-000002: Append\r\nCat-000002: nodes\r\nVar-000002: M-Param2\r\nValue-000002: radio@M-Param2/M-Param3,NONE\r\n"
+	),
+
+	'ami_secret_change' => array(
+		'count'  => 2,
+		'prompt' => "User Secret",
+		'string' => "Action-000000: Update\r\nCat-000000: M-Param1\r\nVar-000000: secret\r\nValue-000000: M-Param2\r\n",
+	),
+
+    // 'add_susb' =>       "Action-000000: Append\r\nCat-000000: M-Category\r\nVar-000000: rxchannel\r\nValue-000000: SimpleUSB/usb_M-Category\r\n",
+    // 'add_statpost' =>   "Action-000000: Append\r\nCat-000000: M-Category\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
+    // 'add_nodes' =>      "Action-000000: Append\r\nCat-000000: nodes\r\nVar-000000: M-Category\r\nValue-000000: radio@m-parameter/M-Category,NONE\r\n",
+	// 'rm_susb'  =>       "Action-000000: Delete\r\nCat-000000: M-Category\r\nVar-000000: rxchannel\r\n",
+	// 'rm_statpost'  =>   "Action-000000: Delete\r\nCat-000000: M-Category\r\nVar-000000: statpost_url\r\n",
 );
+
+function getValidFiles() {
+	global $validFiles;
+	return($validFiles);
+}
+
+function getValidCmdList() {
+	global $validCommands;
+	return($validCommands);
+}
+
+function getCmdList() {
+	global $validCommands;
+	return(array_keys($validCommands));
+}
+
+// Validate and be helpful
+function validateCLI($argc, $argv) {
+	global $validCommands;
+	global $validFiles;
+	$usage = "Usage: hostlookup reload file cmd [param [param] ...]";
+
+	if ($argc <= 3) {
+		return $usage;
+	}
+	// argv[1] host lookup
+	$pattern = '/^[a-zA-Z0-9_-]+$/';
+	if (! filter_var($argv[1], FILTER_VALIDATE_REGEXP, array("options" => array("regexp" => $pattern)))) {
+	     return("Host lookup invalid string.");
+	}
+	// arg[2] reload module
+	if (strtolower($argv[2]) != "no" ) {
+		return("Reload Module must be answered in the negative, for now.");
+	}
+	// argv[3] file alias
+	if (! array_key_exists($argv[3], $validFiles)) {
+		return ("Opps, $argv[3] is not a valid config file.");
+	}
+	// argv[4] cmd alias
+	if (! array_key_exists($argv[4], $validCommands)) {
+		return ("Opps, $argv[4] is not a valid command.");
+	}
+
+	// Check supplied parameter count matches the required parameter count.
+	// Help with correct input.
+	$requiredParameterCount = $validCommands[$argv[4]]['count'];
+	$givenParameterCount = $argc - 5;
+	$delta = $requiredParameterCount - $givenParameterCount;
+	$prompt = $validCommands[$argv[4]]['prompt'];
+	if ( $givenParameterCount != $requiredParameterCount) {
+		if ( $requiredParameterCount == 1 ) {
+			$pural = "parameter";
+		} else {
+			$pural = "parameters";
+		}
+		return ("The $argv[4] command needs $requiredParameterCount $pural: $prompt.");
+	}
+	#print "\$argc: $argc\n";
+	#print "\$requiredParameterCount: $requiredParameterCount\n";
+
+	return "Ok";
+
+	// saving for maybe use later
+	#$pattern = '/^(yes|no)$/i';
+	#$pattern = '/^[a-zA-Z0-9_-]+$/';
+	#$namePattern = '/^[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9]+)?$/';
+	#$pattern = '/^[a-zA-Z0-9_-]+$/';
+	#$pattern = '/^[a-zA-Z0-9\._:=]+$/';
+}
 
 // Reads output lines from Asterisk Manager
 function AMIresponse($fp, $actionID) {
@@ -87,7 +176,7 @@ function AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString) {
 
 	// Complete AMI string
 	$amiString .= "\r\n";
-print $amiString;
+
 	// Do it
 	if ((@fwrite($fp,$amiString)) > 0 ) {
 		// Get response, but do nothing with it
@@ -96,4 +185,3 @@ print $amiString;
 	}
 	return(FALSE);
 }
-
