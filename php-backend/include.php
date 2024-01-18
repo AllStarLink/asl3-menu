@@ -2,7 +2,7 @@
 //error_reporting(0);
 
 // List of app_rpt allowed AMI commands and allowed .conf files.
-// the M-somethings are "templates" for str_replace
+// the M-ParamN are "templates" for str_replace
 $validFiles = array(
 	'rpt' => 'rpt.conf',
 	'susb' => 'simpleusb.conf',
@@ -16,27 +16,38 @@ $validCommands = array (
 	'rpt_node_create' =>  array(
 		'count'  => 2,
 		'prompt' => "NodeNumber IPaddress[:port]",
-		'string' => "Action-000000: NewCat\r\nCat-000000: M-Param1\r\nOptions-000000: inherit='node-main'\r\nAction-000001: Append\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\nValue-000001: radio@M-Param2/M-Param1,NONE\r\n"
+		'string' => "Action-000000: NewCat\r\nCat-000000: M-Param1\r\nOptions-000000: inherit='node-main'\r\n" .
+		            "Action-000001: Append\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\nValue-000001: radio@M-Param2/M-Param1,NONE\r\n"
 	),
 	'rpt_node_delete' =>  array(
 		'count'  => 1,
 		'prompt' => "NodeNumber",
-		'string' => "Action-000000: DelCat\r\nCat-000000: M-Param1\r\nAction-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\n",
+		'string' => "Action-000000: DelCat\r\nCat-000000: M-Param1\r\n" .
+		            "Action-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\n"
 	),
 	'rpt_node_rename' =>  array(
 		'count'  => 3,
 		'prompt' => "OldNodeNumber NewNodeNumber IPaddress[:port]",
-		'string' => "Action-000000: RenameCat\r\nCat-000000: M-Param1\r\nValue-000000: M-Param2\r\nAction-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\nAction-000002: Append\r\nCat-000002: nodes\r\nVar-000002: M-Param2\r\nValue-000002: radio@M-Param2/M-Param3,NONE\r\n"
+		'string' => "Action-000000: RenameCat\r\nCat-000000: M-Param1\r\nValue-000000: M-Param2\r\n" .
+		            "Action-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\n" .
+		            "Action-000002: Append\r\nCat-000002: nodes\r\nVar-000002: M-Param2\r\nValue-000002: radio@M-Param2/M-Param3,NONE\r\n"
 	),
-
+	'rpt_set_susb' => array(
+		'count' => 1 ,
+		'prompt' => "NodeNumber",
+		'string' => "Action-000000: Append\r\nCat-000000: M-Param1\r\nVar-000000: rxchannel\r\nValue-000000: SimpleUSB/M-Param1\r\n"
+	),
+	'rpt_set_statpost' => array(
+		'count' => 1,
+		'prompt' => "NodeNumber",
+		'string' => "Action-000000: Append\r\nCat-000000: M-Param1\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n"
+	),
 	'ami_secret_change' => array(
 		'count'  => 2,
 		'prompt' => "User Secret",
-		'string' => "Action-000000: Update\r\nCat-000000: M-Param1\r\nVar-000000: secret\r\nValue-000000: M-Param2\r\n",
+		'string' => "Action-000000: Update\r\nCat-000000: M-Param1\r\nVar-000000: secret\r\nValue-000000: M-Param2\r\n"
 	),
 
-    // 'add_susb' =>       "Action-000000: Append\r\nCat-000000: M-Category\r\nVar-000000: rxchannel\r\nValue-000000: SimpleUSB/usb_M-Category\r\n",
-    // 'add_statpost' =>   "Action-000000: Append\r\nCat-000000: M-Category\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n",
     // 'add_nodes' =>      "Action-000000: Append\r\nCat-000000: nodes\r\nVar-000000: M-Category\r\nValue-000000: radio@m-parameter/M-Category,NONE\r\n",
 	// 'rm_susb'  =>       "Action-000000: Delete\r\nCat-000000: M-Category\r\nVar-000000: rxchannel\r\n",
 	// 'rm_statpost'  =>   "Action-000000: Delete\r\nCat-000000: M-Category\r\nVar-000000: statpost_url\r\n",
