@@ -2,6 +2,7 @@ prefix = /usr
 
 install:
 	install -m 755 scripts/asl-menu		$(DESTDIR)$(prefix)/sbin/
+	install -m 755 scripts/asl-backup-menu	$(DESTDIR)$(prefix)/sbin/
 	install -m 755 scripts/astdn.sh		$(DESTDIR)$(prefix)/sbin/
 	install -m 755 scripts/astres.sh	$(DESTDIR)$(prefix)/sbin/
 	install -m 755 scripts/astup.sh		$(DESTDIR)$(prefix)/sbin/
@@ -11,6 +12,7 @@ install:
 
 uninstall: 
 	-rm -f $(DESTDIR)$(prefix)/sbin/asl-menu
+	-rm -f $(DESTDIR)$(prefix)/sbin/asl-backup-menu
 	-rm -f $(DESTDIR)$(prefix)/sbin/astdn.sh
 	-rm -f $(DESTDIR)$(prefix)/sbin/astres.sh
 	-rm -f $(DESTDIR)$(prefix)/sbin/astup.sh

@@ -1,0 +1,544 @@
+#!/bin/bash
+# asl-backup-menu
+#
+# This script helps to manage the backup/restore process on
+# AllStarLink nodes.  This script manages both local archives
+# and remote archives (on backup.allstarlink.org).
+#
+# Note: many portions of the script were pulled (or derived)
+#       from the "asl-menu", "node-setup", "save-node", and
+#       "restore-node" scripts.
+#
+# N4IRS  07/2017
+# N8THN  02/2018, 03/2018
+# KK9ROB 02/2021
+# WD6AWP 03/2021, 04/2021
+# WA3WCO 01/2024
+
+BACKUP_DIR="${DESTDIR}/var/asl-backups"
+
+SAVENODE_CONFIG=/etc/asterisk/savenode.conf
+SAVEHOST="backup.allstarlink.org"
+SAVESITE="https://${SAVEHOST}"
+
+MSGBOX_HEIGHT=12
+MSGBOX_WIDTH=60
+TITLE="AllStarLink 3.0.0"
+
+#logfile=/dev/null
+logfile=/tmp/save-node.log
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+check_if_root() {
+    if [[ $EUID != 0 ]]; then
+	whiptail --msgbox "This script must be run as root or with sudo" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	exit 1
+    fi
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+calc_wt_size() {
+    echo "doing calc_wt_size" >>$logfile
+
+    # Bash knows the terminal size
+    #   The number of columns are $COLUMNS
+    #   The number of lines are $LINES
+
+    if [[ $LINES -lt 22 ]]; then
+ 	echo "Terminal size must be at least 22 lines."
+	exit 1
+    fi
+    if [[ $COLUMNS -lt 60 ]]; then
+	echo "Terminal size must be at least 60 columns."
+	exit 1
+    fi
+
+    WT_HEIGHT=22
+
+    # Leave full width up to 100 columns
+    WT_WIDTH=$COLUMNS
+    if [[ $COLUMNS -gt 100 ]]; then
+	WT_WIDTH=100
+    fi
+
+    WT_MENU_HEIGHT=$(($WT_HEIGHT - 8))
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_load_asl_settings()
+{
+    # check primary node settings file, exit on error
+    if [[ ! -r $SAVENODE_CONFIG ]]; then
+	whiptail --msgbox "Sorry, the node settings file (\"$SAVENODE_CONFIG\") does not exist." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return 1
+    fi
+
+    # source the settings
+    .  $SAVENODE_CONFIG
+
+    # check if configured/enabled
+    if [ $ENABLE -eq 0 -o -z "$NODE" -o -z "$PASSWORD" ]; then
+	whiptail --msgbox "The node settings file (\"$SAVENODE_CONFIG\") has not been initialized.  Use the ASL configuration menu to update your node configuration." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return 1
+    fi
+
+    return 0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_backup_local_create() {
+    echo "do_backup_local_create" >>$logfile
+
+    if [[ -z "$1" ]]; then
+	echo "No backup archive name specified"
+	return 1
+    fi
+    BACKUP_ARCHIVE="$1"
+
+    if [[ ! -d "$BACKUP_DIR" ]]; then
+	mkdir -p "$BACKUP_DIR"	2>/dev/null
+	RC=$?
+	if [[ $RC -ne 0 ]]; then
+	    whiptail --msgbox "There was an error creating the archive directory (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    return $RC
+	fi
+    fi
+
+    echo "Creating archive, please wait..."
+    tar					\
+	--create			\
+	--gzip				\
+	--directory="/"			\
+	--file="$BACKUP_ARCHIVE"	\
+	--exclude='*.tgz'		\
+	etc/asterisk			\
+	>/dev/null
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	whiptail --msgbox "There was an error creating the backup (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return $RC
+    fi
+    echo "Created \"$BACKUP_ARCHIVE\""
+
+    chmod go+r "$BACKUP_ARCHIVE"
+    return 0
+}
+
+do_backup_asl_push() {
+    echo "do_backup_asl_push" >>$logfile
+
+    if [[ -z "$1" ]]; then
+	echo "No backup archive name specified"
+	exit 1
+    fi
+
+    BACKUP_ARCHIVE="$1"
+    if [[ ! -f "$BACKUP_ARCHIVE" ]]; then
+	echo "Backup archive not available"
+	exit 1
+    fi
+
+    do_load_asl_settings
+    if [[ $? -ne 0 ]]; then
+	return 1
+    fi
+
+    echo "Saving configuration to \"$SAVEHOST\", please wait..."
+    wget				\
+	--quiet				\
+	--tries=1			\
+	--output-document=-		\
+	--timeout=60			\
+	--http-user="$NODE"		\
+	--http-password="$PASSWORD"	\
+	--post-file=$BACKUP_ARCHIVE	\
+	$SAVESITE/savenode.cgi
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	whiptail --msgbox "There was an error in the file transfer (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return $RC
+    fi
+    echo "Saved \"$BACKUP_ARCHIVE\""
+
+    return 0
+}
+
+do_backup() {
+    echo "do_backup" >>$logfile
+
+    BACKUP_NAME=$(date +ASL_%Y-%m-%d_%H%M.tgz)
+    BACKUP_ARCHIVE="$BACKUP_DIR/$BACKUP_NAME"
+    
+    whiptail								\
+	--title "$TITLE"						\
+	--yesno "Save local backup to :\n  \"$BACKUP_ARCHIVE\" ?"	\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    if [[ $? -ne 0 ]]; then
+	return 0
+    fi
+
+    do_backup_local_create "$BACKUP_ARCHIVE"
+    RC=$?
+    if [[ $RC -ne -0 ]]; then
+	return $RC
+    fi
+
+    whiptail								\
+	--title "$TITLE"						\
+	--yesno "Backup completed.\n\nWould you also like to save this backup to :\n  \"$SAVEHOST\" ?"	\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    if [[ $? -ne 0 ]]; then
+	return 0
+    fi
+
+    do_backup_asl_push "$BACKUP_ARCHIVE"
+    RC=$?
+    if [[ $RC -ne -0 ]]; then
+	return $RC
+    fi
+
+    whiptail								\
+	--msgbox "Backup to \"$SAVEHOST\" complete."			\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+
+    return 0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_restore_local() {
+    echo "do_restore_local" >>$logfile
+
+    if [[ -z "$1" ]]; then
+	echo "No backup archive name specified"
+	return 1
+    fi
+    BACKUP_ARCHIVE="$1"
+
+    if [[ ! -f "$BACKUP_ARCHIVE" ]]; then
+	echo "Backup archive not available"
+	exit 1
+    fi
+
+    echo "Restoring configuration, please wait..."
+    RC=0
+echo	\
+    tar					\
+	--extract			\
+	--gzip				\
+	--directory="/"			\
+	--file="$BACKUP_ARCHIVE"	\
+	>/dev/null
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	whiptail --msgbox "There was an error restoring the configuration (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return $RC
+    fi
+    echo "Restored \"$BACKUP_ARCHIVE\""
+
+    return 0
+}
+
+do_restore_local_select() {
+    echo "do_restore_local" >>$logfile
+
+    calc_wt_size
+
+    # build array of /etc/asterisk/*.tgz files
+    shopt -s nullglob
+    BACKUP_FILES=("$BACKUP_DIR"/*.tgz)
+    #echo ${#BACKUP_FILES[@]}
+    #echo ${BACKUP_FILES[@]}
+    if [[ ${#BACKUP_FILES[@]} -eq 0 ]]; then
+	whiptail --msgbox "No backups available to restore." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return 1
+    fi
+
+    # build array of backups (for radiolist)
+    BACKUP_LIST=()
+    for i in ${!BACKUP_FILES[@]}; do
+	# set last file to ON (selected)
+	if [[ $((i + 1)) -eq ${#BACKUP_FILES[@]} ]]; then
+	    SELECTED="ON"
+	else
+	    SELECTED="OFF"
+	fi
+	BACKUP_LIST+=("${BACKUP_FILES[$i]}" "" "$SELECTED")
+    done
+    #echo ${BACKUP_LIST[@]}
+
+    # select file for restore
+    BACKUP_ARCHIVE=$(whiptail						\
+			 --title "$TITLE"				\
+			 --scrolltext					\
+			 --radiolist "Select the backup to restore (use arrow keys to scroll, space bar to select)"	\
+			 --ok-button "Restore"				\
+			 $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+			 "${BACKUP_LIST[@]}"				\
+			 3>&1 1>&2 2>&3)
+    if [[ $? -ne 0 ]]; then
+	return 1
+    fi
+
+    do_restore_local "$BACKUP_ARCHIVE"
+    RC=$?
+    if [[ $RC -ne -0 ]]; then
+	return $RC
+    fi
+
+    whiptail --msgbox "The \"$BACKUP_ARCHIVE\" backup has been restored.\n\nAn ASL restart is required." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    AST_RESTART=1
+
+    return 0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_restore_asl() {
+    echo "do_restore_asl" >>$logfile
+
+    if [[ -z "$1" ]]; then
+	echo "No asl archive name specified"
+	return 1
+    fi
+    ASL_ARCHIVE="$1"
+
+    BACKUP_NAME=$(echo $ASL_ARCHIVE |	\
+		  sed -E 's/^([0-9][0-9][0-9][0-9])([0-9][0-9])([0-9][0-9])([0-9][0-9][0-9][0-9][0-9][0-9]).tgz$/ASL_\1-\2-\3_\4.asl/')
+    BACKUP_ARCHIVE="$BACKUP_DIR/$BACKUP_NAME"
+
+    echo "Copying archive \"$ASL_ARCHIVE\" from \"${SAVEHOST}\", please wait..."
+    wget							\
+	--quiet							\
+	--tries=1						\
+	--timeout=60						\
+	--http-user="$NODE"					\
+	--http-password="$PASSWORD"				\
+	--output-document="$BACKUP_ARCHIVE"			\
+	"${SAVESITE}/getfile.cgi?$ASL_ARCHIVE"
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	whiptail --msgbox "There was an error in the file transfer (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return $RC
+    elif [[ ! -f "$BACKUP_ARCHIVE" ]]; then
+	echo "Backup archive not available"
+	exit 1
+    fi
+    echo "Copied \"$ASL_ARCHIVE\" to \"$BACKUP_ARCHIVE\""
+
+    do_restore_local "$BACKUP_ARCHIVE"
+    return $?
+}
+
+do_restore_asl_select() {
+    echo "do_restore_asl_select" >>$logfile
+
+    calc_wt_size
+
+    do_load_asl_settings
+    if [[ $? -ne 0 ]]; then
+	return 1
+    fi
+
+#   whiptail --msgbox "Reading information about the \"$SAVEHOST\" configuration backups for AllStarLink node $NODE" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+
+    # get list of backups from backup.allstarlink.org
+    ASL_FILES=()
+    for asl_file in							\
+	$(wget								\
+	      --output-document=-					\
+	      --http-user="$NODE"					\
+	      --http-password="$PASSWORD"				\
+	      ${SAVEHOST}						\
+	      2>/dev/null						\
+	  | grep --only-matching '<A .*HREF="getfile.cgi?[^"].*>'	\
+	  | sed -e 's/<A .*HREF=['"'"'"]getfile.cgi?//'			\
+	        -e 's/["'"'"'].*$//'					\
+	)
+    do
+	ASL_FILES+=("${asl_file}")
+    done
+    #echo ${ASL_FILES[@]}
+    #echo ${#ASL_FILES[@]}
+    if [[ ${#ASL_FILES[@]} -eq 0 ]]; then
+	whiptail --msgbox "No backups available to restore." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return 1
+    fi
+
+    # build array of backups (for radiolist)
+    ASL_LIST=()
+    for i in ${!ASL_FILES[@]}; do
+	# set last file to ON (selected)
+	if [[ $((i + 1)) -eq ${#ASL_FILES[@]} ]]; then
+	    SELECTED="ON"
+	else
+	    SELECTED="OFF"
+	fi
+	ASL_LIST+=("${ASL_FILES[$i]}" "" "$SELECTED")
+    done
+    #echo ${ASL_LIST[@]}
+    #echo ${#ASL_LIST[@]}
+
+    # select file for restore
+    ASL_ARCHIVE=$(whiptail						\
+		      --title "$TITLE"					\
+		      --scrolltext					\
+		      --radiolist "Select the backup (on \"$SAVEHOST\") to restore (use arrow keys to scroll, space bar to select)"	\
+		      --ok-button "Restore"				\
+		      $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+		      "${ASL_LIST[@]}"					\
+		      3>&1 1>&2 2>&3)
+    if [[ $? -ne 0 ]]; then
+	return 1
+    fi
+
+    do_restore_asl "$ASL_ARCHIVE"
+    RC=$?
+    if [[ $RC -ne -0 ]]; then
+	return $RC
+    fi
+
+    whiptail --msgbox "The \"$ASL_ARCHIVE\" backup has been restored.\n\nAn ASL restart is required." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    AST_RESTART=1
+
+    return 0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_remove_local() {
+    echo "do_remove_local" >>$logfile
+
+    # build array of /etc/asterisk/*.tgz files
+    shopt -s nullglob
+    BACKUP_FILES=($BACKUP_DIR/*.tgz)
+    #echo ${#BACKUP_FILES[@]}
+    #echo ${BACKUP_FILES[@]}
+
+    if [[ ${#BACKUP_FILES[@]} -eq 0 ]]; then
+	whiptail --msgbox "No backups available to remove." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return 1
+    fi
+
+    # build array of backups for radiolist
+    BACKUP_LIST=()
+    for i in ${!BACKUP_FILES[@]}; do
+	BACKUP_LIST+=("${BACKUP_FILES[$i]}" "" "OFF")
+    done
+    #echo ${BACKUP_LIST[@]}
+
+    # select file to remove
+    BACKUP_ARCHIVES=$(whiptail						\
+			  --title "$TITLE"				\
+			  --scrolltext					\
+			  --checklist "Select the backup(s) to remove (use arrow keys to scroll, space bar to select/deselect)"	\
+			  --ok-button "Remove"				\
+			  $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+			  "${BACKUP_LIST[@]}"				\
+			  3>&1 1>&2 2>&3)
+    if [[ $? -ne 0 ]]; then
+	return 1
+    fi
+    #echo ${BACKUP_ARCHIVES[@]}
+
+    for BACKUP_ARCHIVE in $BACKUP_ARCHIVES; do
+	echo "Removing $BACKUP_ARCHIVE"
+	rm -f "$BACKUP_ARCHIVE"
+    done
+
+    return $?
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_backup_restore_menu_info() {
+    echo "do_backup_restore_menu_info" >>$logfile
+
+    read -r -d '' text << EOT
+The "Create" option will create a backup archive of your configuration.  The archive will be stored locally in the "${BACKUP_DIR}" directory in ".tgz" format.  After the backup is created you will have the option to upload to archive to an AllStarLink backup server.
+
+The "Restore" options will allow you to restore an AllStarLink configuration from a previously saved backup.  The backup archive will be from either local storage or from the AllStarLink backup server.
+
+The "Delete" option will allow you to remove any of your locally stored backups.
+EOT
+
+    whiptail --title "$TITLE" --scrolltext --msgbox "$text" $WT_HEIGHT $WT_WIDTH
+}
+
+do_backup_restore_menu() {
+    echo "do_backup_restore_menu" >>$logfile
+
+    while true; do
+	calc_wt_size
+	ANSWER=$(whiptail						\
+		    --title "$TITLE"					\
+		    --menu "Backup/Restore Menu"			\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+		    --ok-button "Select"				\
+		    --cancel-button "Back"				\
+		    "1" "Create node backup"				\
+		    "2" "Restore node from local backups"		\
+		    "3" "Restore node from \"$SAVEHOST\" backups"	\
+		    "4" "Delete a local backup file"			\
+		    "I" "Information"					\
+		    3>&1 1>&2 2>&3)
+	if [ $? -ne 0 ]; then
+	    return
+	fi
+
+	case "$ANSWER" in
+	    1)	do_backup						;;
+	    2)	do_restore_local_select					;;
+	    3)	do_restore_asl_select					;;
+	    4)	do_remove_local						;;
+	    I)	do_backup_restore_menu_info				;;
+	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	esac
+    done
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+/usr/bin/clear
+check_if_root
+
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+	"backup" )
+	    do_backup
+	    exit $?
+	    ;;
+
+	"restore-local" )
+	    do_restore_local_select
+	    exit $?
+	    ;;
+
+	"restore-asl" )
+	    do_restore_asl_select
+	    exit $?
+	    ;;
+
+	"delete" | "remove" )
+	    do_remove_local
+	    exit $?
+	    ;;
+
+	* )
+	    echo "Usage: $0 [ local | asl ]"
+	    exit 1
+    esac
+
+    exit 0
+fi
+
+#
+# ... and w/no args, present the backup/restore menu
+#
+do_backup_restore_menu
+exit $?
+
