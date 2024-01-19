@@ -32,17 +32,43 @@ $validCommands = array (
 		            "Action-000001: Delete\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\n" .
 		            "Action-000002: Append\r\nCat-000002: nodes\r\nVar-000002: M-Param2\r\nValue-000002: radio@M-Param2/M-Param3,NONE\r\n"
 	),
-	'rpt_set_susb' => array(
+	'rpt_node_set_susb' => array(
 		'count' => 1 ,
 		'prompt' => "NodeNumber",
-		'string' => "Action-000000: Append\r\nCat-000000: M-Param1\r\nVar-000000: rxchannel\r\nValue-000000: SimpleUSB/M-Param1\r\n"
+		'string' => "Action-000000: Delete\r\nCat-000000: M-Param1\r\nVar-000000: rxchannel\r\n" .
+		            "Action-000001: Append\r\nCat-000001: M-Param1\r\nVar-000001: rxchannel\r\nValue-000001: SimpleUSB/M-Param1\r\n"
 	),
-	'rpt_set_statpost' => array(
+	'rpt_node_set_radio' => array(
+		'count' => 1 ,
+		'prompt' => "NodeNumber",
+		'string' => "Action-000000: Delete\r\nCat-000000: M-Param1\r\nVar-000000: rxchannel\r\n" .
+		            "Action-000001: Append\r\nCat-000001: M-Param1\r\nVar-000001: rxchannel\r\nValue-000001: Radio/M-Param1\r\n"
+	),
+	'rpt_node_set_pseudo' => array(
+		'count' => 1 ,
+		'prompt' => "NodeNumber",
+		'string' => "Action-000000: Delete\r\nCat-000000: M-Param1\r\nVar-000000: rxchannel\r\n" .
+                    "Action-000001: Append\r\nCat-000001: M-Param1\r\nVar-000001: rxchannel\r\nValue-000001: Dahdi/pseudo\r\n"
+	),
+	'rpt_node_set_statpost' => array(
 		'count' => 1,
 		'prompt' => "NodeNumber",
-		'string' => "Action-000000: Append\r\nCat-000000: M-Param1\r\nVar-000000: statpost_url\r\nValue-000000: http://stats.allstarlink.org/uhandler\r\n"
+		'string' => "Action-000000: Delete\r\nCat-000000: M-Param1\r\nVar-000000: statpost_url\r\n" .
+					"Action-000001: Append\r\nCat-000001: M-Param1\r\nVar-000001: statpost_url\r\nValue-000001: http://stats.allstarlink.org/uhandler\r\n"
 	),
-	'ami_secret_change' => array(
+	'rpt_node_clear_statpost' => array(
+		'count' => 1,
+		'prompt' => "NodeNumber",
+        'string' => "Action-000000: Delete\r\nCat-000000: M-Param1\r\nVar-000000: statpost_url\r\n",
+    ),
+	'rpt_node_set_duplex' => array(
+		'count' => 2,
+		'prompt' => "NodeNumber Duplex",
+		'string' => "Action-000000: Delete\r\nCat-000000: M-Param1\r\nVar-000000: duplex\r\n" .
+                    "Action-000000: Append\r\nCat-000001: M-Param1\r\nVar-000001: duplex\r\nValue-000001: M-Param2\r\n"
+	),
+
+	'ami_set_secret' => array(
 		'count'  => 2,
 		'prompt' => "User Secret",
 		'string' => "Action-000000: Update\r\nCat-000000: M-Param1\r\nVar-000000: secret\r\nValue-000000: M-Param2\r\n"
@@ -50,7 +76,6 @@ $validCommands = array (
 
     // 'add_nodes' =>      "Action-000000: Append\r\nCat-000000: nodes\r\nVar-000000: M-Category\r\nValue-000000: radio@m-parameter/M-Category,NONE\r\n",
 	// 'rm_susb'  =>       "Action-000000: Delete\r\nCat-000000: M-Category\r\nVar-000000: rxchannel\r\n",
-	// 'rm_statpost'  =>   "Action-000000: Delete\r\nCat-000000: M-Category\r\nVar-000000: statpost_url\r\n",
 );
 
 function getValidFiles() {
@@ -74,7 +99,7 @@ function validateCLI($argc, $argv) {
 	global $validFiles;
 	$usage = "Usage: hostlookup reload file cmd [param [param] ...]";
 
-	if ($argc <= 3) {
+	if ($argc <= 2) {
 		return $usage;
 	}
 	// argv[1] host lookup
@@ -87,10 +112,17 @@ function validateCLI($argc, $argv) {
 		return("Reload Module must be answered in the negative, for now.");
 	}
 	// argv[3] file alias
+	if (empty($argv[3])) {
+		return("Opps, fileAlias must be provided.\n");
+	}
 	if (! array_key_exists($argv[3], $validFiles)) {
-		return ("Opps, $argv[3] is not a valid config file.");
+		return ("Opps, $argv[3] is not a valid config file.\n");
 	}
 	// argv[4] cmd alias
+	if (empty($argv[4])) {
+        $List = implode("\n", getCmdList());
+		return("Opps, cmdAlias must be provided.\nValid Cmds are:\n$List");
+	}
 	if (! array_key_exists($argv[4], $validCommands)) {
 		return ("Opps, $argv[4] is not a valid command.");
 	}
