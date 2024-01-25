@@ -74,7 +74,7 @@ $validCommands = array (
 		'string' => "Action-000000: NewCat\r\nCat-000000: M-Param1\r\nOptions-000000: inherit='node-main'\r\n" .
 		            "Action-000001: Append\r\nCat-000001: nodes\r\nVar-000001: M-Param1\r\nValue-000001: radio@M-Param2/M-Param1,NONE\r\n" .
 					"Action-000002: Append\r\nCat-000002: M-Param1\r\nVar-000002: rxchannel\r\nValue-000002: M-Param3/M-Param1\r\n" .
-                    "Action-000003: Append\r\nCat-000003: M-Param1\r\nVar-000003: duplexmode\r\nValue-000003: M-Param4\r\n" .
+                    "Action-000003: Append\r\nCat-000003: M-Param1\r\nVar-000003: duplex\r\nValue-000003: M-Param4\r\n" .
 					"Action-000004: Append\r\nCat-000004: M-Param1\r\nVar-000004: idrecording\r\nValue-000004: |M-Param5\r\n" .
 					"Action-000005: Append\r\nCat-000005: M-Param1\r\nVar-000005: statpost_url\r\nValue-000005: http://stats.allstarlink.org/uhandler\r\n"
 	),
