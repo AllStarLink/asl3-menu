@@ -8,3 +8,4 @@
 - Deleting a Category removes all blank lines and comments above it.
 - Indented comments leading space is removed.
 - Setting `Var` duplex fails without an error.
+- The AMI won't set a var if the value matches the template.
