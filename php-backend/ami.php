@@ -1,79 +1,129 @@
-#! /usr/bin/php
 <?php
 /*
-ami.php
-Copyright (c) 2024 AllStarLink, Inc
-Author WD6AWP
+ * ami.php
+ * Copyright (c) 2024 AllStarLink, Inc
+ * Author WD6AWP, WA3WCO
 */
 
-include('include.php');
-#print "\$validCommands: "; print_r(getValidCmdList());
-#print "\$validFiles: "; print_r(getValidFiles());
-#print "\$cmdList: "; print_r(getCmdList());
+//
+// TODO TODO TODO
+//
+//   Turn this file into a PHP "Class"
+//     https://www.php.net/manual/en/language.oop5.php
+//
+//   Add "nextActionID" (random)
+//   Add "nextAction"   (sequential)
+//
 
-/********** Validate CLI input **********/
-$errorMessage = validateCLI($argc, $argv);
-if ($errorMessage !== 'Ok') {
-    print "$errorMessage\n"; exit(1);
-}
-// Those are keepers.
-$hostLookup = $argv[1];
-$reload = $argv[2];
-$fileAlias = $argv[3];
-$cmdAlias = $argv[4];
+//
+// Doc :
+//   https://asterisk.phreaknet.org/#manageraction-UpdateConfig
+//   https://docs.asterisk.org/Configuration/Interfaces/Asterisk-Manager-Interface-AMI
+//
 
-// Gather the cmdAlias and its paramaters
-foreach($argv as $arg => $value) {
-    if ($arg > 3) {
-        $cliParams[] = $value;
+//error_reporting(0);
+
+// DEBUG
+$ami_debug = false;
+function AMI_debug()		{ global $ami_debug; return $ami_debug;   }
+function AMI_set_debug($debug)	{ global $ami_debug; $ami_debug = $debug; }
+
+// Reads output lines from Asterisk Manager
+function AMIresponse($fp, $actionID) {
+    while (TRUE) {
+	$str = fgets($fp);
+
+	# Looking for our ActionID
+	if ("ActionID: $actionID" == trim($str)) {
+	    $response = $str;
+	    while (TRUE) {
+		$str = fgets($fp);
+		if ($str != "\r\n") {
+		    $response .= $str;
+		} else {
+		    return ($response);
+		}
+	    }
+	}
     }
 }
 
-/********** Read settings ini file **********/
-if (!file_exists('settings.ini')) {
-    die("Couldn't load ini file.\n");
-}
-$config = parse_ini_file('settings.ini', true);
-if (! array_key_exists($hostLookup, $config)) {
-    print "Opps, $hostLookup is not in settings.ini\n"; exit(1);
-}
-#print_r($config);
-
-/********** Get validCommand and validFile from their alias ***********/
-$validFile = $validFiles[$fileAlias];
-print "\$validFile: $validFile\n";
-$cmdString = $validCommands[$cmdAlias]['string'];
-#$params = $validCommands[$cmdAlias]['count'];
-#print "\$params: $params\n";
-#print "\$cmdString: $cmdString\n";
-
-/********** Update command place holders **********/
-foreach ( $cliParams as $i => $value ) {
-    if ($i >= 1) {
-        $search = "M-Param$i";
-        $replace = $cliParams[$i];
-        print "$search $replace\n";
-        $cmdString = str_replace($search, $replace, $cmdString);
+// connect to the AMI host
+function AMIconnect($host) {
+    // Set default port if not provided
+    $arr = explode(":", $host);
+    $ip = $arr[0];
+    if (isset($arr[1])) {
+	$port = $arr[1];
+    } else {
+	$port = 5038;
     }
-}
-#print "UPDATED $cmdString";
+    #print "connect: ip=$ip port=$port\n";
 
-/********** Open a socket and login to Asterisk Manager **********/
-$fp = AMIconnect($config[$hostLookup]['host']);
-if (FALSE === $fp) {
-	die("Could not connect to Asterisk Manager.\n\n");
-} else {
-    print "Connected to $hostLookup\n";
-}
-if (FALSE === AMIlogin($fp, $config[$hostLookup]['user'], $config[$hostLookup]['passwd'])) {
-	die("Could not login to Asterisk Manager.");
-} else {
-    print "Logged in to $hostLookup\n";
+    // Open a manager socket.
+    $fp = fsockopen($ip, $port, $errno, $errstr, 5);	// use @fsockopen?
+    if ($fp === false) {
+	throw new Exception("Could not connect to Asterisk Manager");
+    }
+
+    return ($fp);
 }
 
-/********** Send to AMI **********/
-$srcFile = $validFile;
-$dstFile = $validFile;
-$amiStatus = AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString);
+// login to AMI
+function AMIlogin($fp, $user, $password) {
+    $actionID = 'AMI-PHP-' . mt_rand();
 
-print_r($amiStatus);
+    // build the command
+    $amiString	= "Action: Login\r\n"
+		. "ActionID: $actionID\r\n"
+		. "Events: 0\r\n"			// ??
+		. "Username: $user\r\n"
+		. "Secret: $password\r\n"
+		. "\r\n";
+    if (AMI_debug()) print "write  :\n>>>\n$amiString<<<\n";
+
+    // send the command
+    $written = fwrite($fp, $amiString);			// use @fwrite?
+    if ($written === false) {
+	throw new Exception("Error: AMI (login) write failed");
+    }
+
+    // get the response
+    $response = AMIresponse($fp, $actionID);
+    if (AMI_debug()) print "response :\n>>>\n"; print_r($response); print "<<<\n";
+
+    if (preg_match("/Message: Authentication accepted/", $response) != 1) {
+	throw new Exception("Error: could not login to Asterisk Manager");
+    }
+
+    return TRUE;
+}
+
+// send AMI command
+function AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString) {
+    // Asterisk Manger Interface needs an "ActionID" so we can find our own response
+    $actionID = 'AMI-PHP-' . mt_rand();
+
+    // Build the AMI command string
+    $amiString	= "Action: UpdateConfig\r\n"
+		. "ActionID: $actionID\r\n"
+		. "SrcFilename: $srcFile\r\n"
+		. "DstFilename: $dstFile\r\n"
+		. "Reload: $reload\r\n"
+#		. "PreserveEffectiveContext\r\n"	// ?? doesn't this need a value? and is it needed?
+		. $cmdString
+		. "\r\n";
+    if (AMI_debug()) print "write  :\n>>>\n$amiString<<<\n";
+
+    // send the command
+    $written = fwrite($fp, $amiString);			// use @fwrite?
+    if ($written === false) {
+	throw new Exception("Error: AMI (command) write failed");
+    }
+
+    // get the response, but do nothing with it
+    $response = AMIresponse($fp, $actionID);
+    if (AMI_debug()) print "response :\n>>>\n"; print_r($response); print "<<<\n";
+
+    return $response;
+}
