@@ -7,5 +7,4 @@
   - If the last line in a file is a comment, an added Category incorectly starts at the end of the line, not the end of the file.
 - Deleting a Category removes all blank lines and comments above it.
 - Indented comments leading space is removed.
-- Setting `Var` duplex fails without an error.
 - The AMI won't set a var if the value matches the template.
