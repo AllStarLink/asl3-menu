@@ -340,40 +340,54 @@ function ASL_reload()			{ global $asl_reload; return $asl_reload;    }
 function ASL_set_reload($reload)	{ global $asl_reload; $asl_reload = $reload; }
 
 function getTargetAMIHostInfo($targetHost) {
+
+    // check for a "settings.ini" file
+
+    $iniDirs = array(".", $_SERVER['HOME']);
     $iniFile = "settings.ini";
 
-// FIXME FIXME FIXME
-//   we should look for the settings.ini file in multiple locations
-//   and if we can't find the file AND if $targetHost == "localhost"
-//   then we should pull the info from "/etc/asterisk/manager.conf"
+    foreach ($iniDirs as $dir) {
+	$iniPath = $dir . "/" . $iniFile;
+    	if (file_exists($iniPath)) {
+	    // read and parse the file
+	    $config = parse_ini_file($iniPath, true);
+	    if ($config === null) {
+		throw new Exception("Error parsing \"$iniPath\"");
+	    }
 
-    // the "settings.ini" file contains information on the target AMI host(s)
-    if (! file_exists($iniFile)) {
-	throw new Exception("No \"$iniFile\" found\n");
+	    // get the per-target configuration
+	    if (! array_key_exists($targetHost, $config)) {
+		throw new Exception("Configuration for host \"$host\" not found in \"$iniFile\"\n");
+	    }
+
+	    $targetHostInfo = $config[$targetHost];
+	    return $targetHostInfo;
+	}
     }
 
-    // parse the file
-    $config = parse_ini_file($iniFile, true);
-    if ($config === null) {
-	throw new Exception("Error parsing \"$iniFile\"\n");
+    // if no "settings.ini", check if we can use manager.conf
+
+    if ($targetHost == "localhost") {
+	$config = parse_ini_file("/etc/asterisk/manager.conf", true);
+	if ($config != null) {
+	    if (array_key_exists('general',  $config)			&&
+		array_key_exists('bindaddr', $config['general'])	&&
+		array_key_exists('port',     $config['general'])	&&
+		array_key_exists('admin',    $config)			&&	
+		array_key_exists('secret',   $config['admin'  ])) {
+		$host   = $config['general']['bindaddr'];
+		$port   = $config['general']['port'];
+		$user   = "admin";
+		$secret = $config['admin']['secret'];
+		$targetHostInfo = array('host'   => "$host:$port",
+					'user'   => $user,
+					'secret' => $secret);
+		return $targetHostInfo;
+	    }
+	}
     }
 
-    // get the per-target configuration
-    if (! array_key_exists($targetHost, $config)) {
-	throw new Exception("Configuration for host \"$host\" not found in \"$iniFile\"\n");
-    }
-    $targetHostInfo = $config[$targetHost];
-
-    // get the host/port of the target
-    $hasHost = array_key_exists('host',   $targetHostInfo);
-    $hasUser = array_key_exists('user',   $targetHostInfo);
-    $hasPass = (array_key_exists('secret', $targetHostInfo) ||
-	        array_key_exists('passwd', $targetHostInfo));
-    if (! $hasHost || ! $hasUser || ! $hasPass) {
-	throw new Exception("Missing configuration info for target AMI host \"$target\" in \"$iniFile\"\n");
-    }
-
-    return $targetHostInfo;
+    throw new Exception("Configuration for host \"$targetHost\" not available");
 }
 
 function ASLCommandExecute($options) {
@@ -653,7 +667,7 @@ function ASLCommandValidate($options) {
     foreach ($commandArgs as $requiredArg) {
 	if (! array_key_exists($requiredArg, $options)) {
 	    $help = $commandInfo['help'];
-	    throw new Exception("Missing argument \"$requiredArg\".\n\nUsage: " . ASL_usage_prefix() . " --command=$command $help\n");
+	    throw new Exception("Missing argument \"$requiredArg\".\n\nUsage: " . ASL_usage_prefix() . " --command=$command $help");
 	}
 
 	$value = $options[$requiredArg];
