@@ -1,8 +1,8 @@
 [localhost]
 host=127.0.0.1
 user=admin
-passwd=changeme0
+secret=changeme0
 [server1]
 host=8.8.8.8
 user=aslmenu
-passwd=changeme1
+secret=changeme1

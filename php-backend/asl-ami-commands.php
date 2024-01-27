@@ -43,7 +43,7 @@ include("ami.php");
 $aslCommands = array(
 	'node_create' =>  array(
 		'args' => array("newNode", "iaxIP", "iaxPort"),
-		'help' => "--newNode=NodeNumber [ --iaxIP=IPaddress ] [ --iaxPort=port ]",
+		'help' => "--newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -55,16 +55,16 @@ $aslCommands = array(
 							 . "Var-000001: M-newNode\r\n"
 							 . "Value-000001: radio@M-iaxIP:M-iaxPort/M-newNode,NONE\r\n",
 			),
-//			1 => array(
-//				'file' => "some other file",
-//				'string' => "",
-//			),
 		),
 	),
 
 	'node_create_full' =>  array(
 		'args' => array("newNode", "iaxIP", "iaxPort", "rxChannel", "duplex", "callsign"),
-		'help' => "--newNode=NodeNumber --rxChannel=(SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4) --duplex=(0|1|2|3|4) --callsign=Callsign [ --iaxIP=IPaddress ] [ --iaxPort=port ]",
+		'help' => "--newNode=<node> --rxChannel=<channel> --duplex=<duplex> --callsign=<callsign> [--iaxIP=<ip>] [--iaxPort=<port>]"
+			. "\n"
+			. "\nWhere:"
+			. "\n  channel = (SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)"
+			. "\n  duplex  = (0|1|2|3|4)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -101,7 +101,7 @@ $aslCommands = array(
 
 	'node_delete' =>  array(
 		'args' => array("node"),
-		'help' => "--node=NodeNumber",
+		'help' => "--node=<node>",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -116,7 +116,7 @@ $aslCommands = array(
 
 	'node_rename' =>  array(
 		'args' => array("node", "newNode", "iaxIP", "iaxPort"),
-		'help' => "--node=NodeNumber --newNode=NodeNumber [ --iaxIP=IPaddress ] [ --iaxPort=port ]",
+		'help' => "--node=<node> --newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -136,7 +136,7 @@ $aslCommands = array(
 
 	'node_set_callsign' => array(
 		'args' => array("node", "callsign"),
-		'help' => "--node=NodeNumber --callsign=\"callsign\"",
+		'help' => "--node=<node> --callsign=<callsign>",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -160,7 +160,10 @@ $aslCommands = array(
 
 	'node_set_channel' => array(
 		'args' => array("node", "rxChannel"),
-		'help' => "--node=NodeNumber --rxChannel=(SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)",
+		'help' => "--node=<node> --rxChannel=<channel>"
+			. "\n"
+			. "\nWhere:"
+			. "\n  channel = (SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -177,7 +180,10 @@ $aslCommands = array(
 
 	'node_set_duplex' => array(
 		'args' => array("node", "duplex"),
-		'help' => "--node=NodeNumber --duplex=(0|1|2|3|4)",
+		'help' => "--node=<node> --duplex=<duplex>"
+			. "\n"
+			. "\nWhere:"
+			. "\n  duplex = (0|1|2|3|4)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -194,7 +200,7 @@ $aslCommands = array(
 
 	'node_set_statpost' => array(
 		'args' => array("node", "enable"),
-		'help' => "--node=NodeNumber --enable=(yes|no)",
+		'help' => "--node=<node> --enable=(yes|no)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -215,7 +221,7 @@ $aslCommands = array(
 
 	'ami_set_secret' => array(
 		'args' => array("user", "secret"),
-		'help' => "[ --user=\"amiUser\" ] --secret=\"amiSecret\"",
+		'help' => "[--user=<user>] --secret=<secret>",
 		'actions' => array(
 			0 => array(
 				'file' => "manager.conf",
@@ -229,7 +235,7 @@ $aslCommands = array(
 
 	'module_enable' => array(
 		'args' => array("module", "load"),
-		'help' => "--module=astModule --load=(true|false|load|noload)",
+		'help' => "--module=astModule --load=(yes|no)",
 		'actions' => array(
 			//
 			// NOTE: here, I have broken out the actions thinking
@@ -359,9 +365,11 @@ function getTargetAMIHostInfo($targetHost) {
     $targetHostInfo = $config[$targetHost];
 
     // get the host/port of the target
-    if (! array_key_exists('host',   $targetHostInfo) ||
-        ! array_key_exists('user',   $targetHostInfo) ||
-        ! array_key_exists('passwd', $targetHostInfo)) {
+    $hasHost = array_key_exists('host',   $targetHostInfo);
+    $hasUser = array_key_exists('user',   $targetHostInfo);
+    $hasPass = (array_key_exists('secret', $targetHostInfo) ||
+	        array_key_exists('passwd', $targetHostInfo));
+    if (! $hasHost || ! $hasUser || ! $hasPass) {
 	throw new Exception("Missing configuration info for target AMI host \"$target\" in \"$iniFile\"\n");
     }
 
@@ -399,7 +407,11 @@ function ASLCommandExecute($options) {
 
     // login with Asterisk
     try {
-	$ok = AMIlogin($fp, $targetHostInfo['user'], $targetHostInfo['passwd']);
+	$user = $targetHostInfo['user'];
+	$pass = array_key_exists('secret', $targetHostInfo)
+		? $targetHostInfo['secret']
+		: $targetHostInfo['passwd'];
+	$ok = AMIlogin($fp, $user, $pass);
     } catch(Exception $e) {
 	throw $e;
     }
@@ -503,7 +515,7 @@ function ASLCommandHelp($command) {
     }
 
     $commandInfo = $aslCommands[$command];
-    $commandHelp = "Usage: " . ASL_usage_prefix() . " --command=<command> " . $commandInfo['help'];
+    $commandHelp = "Usage: " . ASL_usage_prefix() . " --command=$command " . $commandInfo['help'];
 
     return $commandHelp;
 }

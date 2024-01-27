@@ -14,7 +14,7 @@
 set_include_path("/usr/lib/asterisk/php-support");
 include("asl-ami-commands.php");
 
-$usage_prefix = "$argv[0] [ --host=<host> ]";
+$usage_prefix = "$argv[0] [--host=<host>] [--reload]";
 ASL_set_usage_prefix($usage_prefix);
 
 function usage() {

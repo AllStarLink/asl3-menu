@@ -4,15 +4,15 @@ This repository contains the ASL Menu system. Previous versions of ASL contain t
 
 ## Menu Design Goals
 
-- This menu should only perform Asterisk and node configurations, ie editing the config files. OS settings such as setting the IP address, time zone, hostname, etc should be done with other tools.
+- This menu should only perform Asterisk and node configurations (i.e. editing the config files). OS settings such as setting the IP address, time zone, hostname, etc should be done with other tools.
 
-- Initially the menu may be a reworked ASL2 menu (the asl-menu script) for ASL3. At some point, maybe soon, this menu should use an api, perhaps the AMI (https://asterisk.phreaknet.org/#manageraction-UpdateConfig) in common with other utilities such as a web based system.
+- Initially, the menu may be a reworked ASL2 menu (the `asl-menu` script) updated for ASL3. At some point, maybe soon, this menu should use an API, perhaps Asterisk's AMI ([https://asterisk.phreaknet.org/#manageraction-UpdateConfig](https://asterisk.phreaknet.org/#manageraction-UpdateConfig)) in common with other utilities such as a web based system.
 
-- Ideally any tool that edits the config files should assume other tools including text file editors remain compatible.
+- Ideally, any tool that edits the configuration files should assume other tools including text file editors are also being used to update the configuration.  We need to ensure compatibility.
 
-- It should auto launch with ssh log in. May be disabled or enabled from itself or other utilities.
+- The menu should auto launch with SSH login's but this functionality may be disabled or enabled from the menu itself or other utilities.
 
-- It should auto launch the add node menu. Disable after first time use.
+- If no node has been configured the menu should auto launch to the "add node" menu.
 
 - Add node. Same data elements as Edit node.
 
