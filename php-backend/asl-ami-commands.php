@@ -31,6 +31,7 @@ include("ami.php");
 //
 //   * 'file'    : the file to be updated
 //   * 'string'  : the AMI action string to be executed
+//   * 'enable'  : the command line argument that controls whether to execute this action
 //
 // Note: a string substitution of the required arguments and their provided
 //       values will be applied to both the "file" and the "string"
@@ -63,7 +64,7 @@ $aslCommands = array(
 
 	'node_create_full' =>  array(
 		'args' => array("newNode", "iaxIP", "iaxPort", "rxChannel", "duplex", "callsign"),
-		'help' => "--newNode=NodeNumber --rxChannel=(SimpleUSB|Radio|Pseudo) --duplex=(0|1|2|3|4) --callsign=Callsign [ --iaxIP=IPaddress ] [ --iaxPort=port ]",
+		'help' => "--newNode=NodeNumber --rxChannel=(SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4) --duplex=(0|1|2|3|4) --callsign=Callsign [ --iaxIP=IPaddress ] [ --iaxPort=port ]",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -159,7 +160,7 @@ $aslCommands = array(
 
 	'node_set_channel' => array(
 		'args' => array("node", "rxChannel"),
-		'help' => "--node=NodeNumber --rxChannel=(SimpleUSB|Radio|Pseudo)",
+		'help' => "--node=NodeNumber --rxChannel=(SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -191,39 +192,30 @@ $aslCommands = array(
 		),
 	),
 
-	'node_set_statpost_on' => array(
-		'args' => array("node"),
-		'help' => "--node=NodeNumber",
+	'node_set_statpost' => array(
+		'args' => array("node", "enable"),
+		'help' => "--node=NodeNumber --enable=(yes|no)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
 				'string' => "Action-000000: Delete\r\n"
 							 . "Cat-000000: M-node\r\n"
 							 . "Var-000000: statpost_url\r\n"
-					  . "Action-000001: Append\r\n"
-							 . "Cat-000001: M-node\r\n"
-							 . "Var-000001: statpost_url\r\n"
-							 . "Value-000001: http://stats.allstarlink.org/uhandler\r\n"
 			),
-		),
-	),
-
-	'node_set_statpost_off' => array(
-		'args' => array("node"),
-		'help' => "--node=NodeNumber",
-		'actions' => array(
-			0 => array(
+			1 => array(
+				'enable' => "enable",
 				'file' => "rpt.conf",
-				'string' => "Action-000000: Delete\r\n"
+				'string' => "Action-000000: Append\r\n"
 							 . "Cat-000000: M-node\r\n"
-							 . "Var-000000: statpost_url\r\n",
+							 . "Var-000000: statpost_url\r\n"
+							 . "Value-000000: http://stats.allstarlink.org/uhandler\r\n"
 			),
 		),
 	),
 
 	'ami_set_secret' => array(
 		'args' => array("user", "secret"),
-		'help' => "--user=\"amiUser\" --secret=\"amiSecret\"",
+		'help' => "[ --user=\"amiUser\" ] --secret=\"amiSecret\"",
 		'actions' => array(
 			0 => array(
 				'file' => "manager.conf",
@@ -250,23 +242,23 @@ $aslCommands = array(
 				'string' => "Action-000000: Delete\r\n"
 							 . "Cat-000000: modules\r\n"
 							 . "Var-000000: load\r\n"
-							 . "Match-000000: M-module.so\r\n"
-							 . "Value-000000: M-module.so\r\n"
+							 . "Match-000000:M-module.so\r\n"
+							 . "Value-000000:M-module.so\r\n"
 			),
 			1 => array(
 				'file' => "modules.conf",
-				'string' => "Action-000001: Delete\r\n"
-							 . "Cat-000001: modules\r\n"
-							 . "Var-000001: noload\r\n"
-							 . "Match-000001: M-module.so\r\n"
-							 . "Value-000001: M-module.so\r\n"
+				'string' => "Action-000000: Delete\r\n"
+							 . "Cat-000000: modules\r\n"
+							 . "Var-000000: noload\r\n"
+							 . "Match-000000:M-module.so\r\n"
+							 . "Value-000000:M-module.so\r\n"
 			),
 			2 => array(
 				'file' => "modules.conf",
-				'string' => "Action-000002: Append\r\n"
-							 . "Cat-000002: modules\r\n"
-							 . "Var-000002: M-load\r\n"
-							 . "Value-000002: M-module.so\r\n"
+				'string' => "Action-000000: Append\r\n"
+							 . "Cat-000000: modules\r\n"
+							 . "Var-000000: M-load\r\n"
+							 . "Value-000000:>M-module.so\r\n"
 			),
 		),
 	),
@@ -302,7 +294,7 @@ $aslLongOptions  = array(
     "module:",		// --module=<string>
     "newNode:",		// --newNode=int
     "node:",		// --node=int
-    "rxChannel:",	// --rxChannel=(SimpleUSB|Radio|Pseudo)
+    "rxChannel:",	// --rxChannel=(SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)
     "secret:",		// --secret=<string>	(e.g. "your-ami-secret")
     "user:",		// --user=<string>	(e.g. "admin")
     // Optional options
@@ -317,6 +309,7 @@ $aslOptionDefaults = array(
     "host"    => "localhost",	// the target AMI host
     "iaxIP"   => "127.0.0.1",
     "iaxPort" => 4569,
+    "user"    => "admin",	// the AMI user
 );
 
 // DEBUG
@@ -343,7 +336,11 @@ function ASL_set_reload($reload)	{ global $asl_reload; $asl_reload = $reload; }
 function getTargetAMIHostInfo($targetHost) {
     $iniFile = "settings.ini";
 
-// FIXME FIXME FIXME -- we should look for the settings.ini file in multiple locations
+// FIXME FIXME FIXME
+//   we should look for the settings.ini file in multiple locations
+//   and if we can't find the file AND if $targetHost == "localhost"
+//   then we should pull the info from "/etc/asterisk/manager.conf"
+
     // the "settings.ini" file contains information on the target AMI host(s)
     if (! file_exists($iniFile)) {
 	throw new Exception("No \"$iniFile\" found\n");
@@ -416,11 +413,21 @@ function ASLCommandExecute($options) {
     $actions = $info['actions'];
 
     $srcOrig = "";
-    $srcLast = "";
+    $rcLast = "";
     $dstLast = "";
 
     // iterate over the actions
     foreach ($actions as $key => $action) {
+
+	// for actions with an 'enable' key, process conditionally
+	if (array_key_exists('enable', $action)) {
+	    $enableKey = $action['enable'];
+	    $enabled = $validOptions[$enableKey];
+	    if (! $enabled) {
+		if (ASL_debug()) print "Skipping \"$command\" action \"$key\"\n";
+		continue;
+	    }
+	}
 
 	// the file we are reading
 	$srcFile = $action['file'];
@@ -526,10 +533,14 @@ function validateBool($bool) {
 //   returns value on success, NULL on error
 function validateChannel($rxChannel): mixed {
     $validChannels = array(
-	'simpleusb' => "SimpleUSB/M-node",
-	'susb'      => "SimpleUSB/M-node",
-	'radio'     => "Radio/M-node",
-	'pseudo'    => "Dahdi/pseudo",
+	'beagle'    => "Beagle/1",			// BeagleBoard			chan_beagle.so
+	'pcix4'     => "Dahdi/1",			// PCI Quad card
+//	'pi'        => "Pi/1",				// Raspberry Pi PiTA
+	'pseudo'    => "Dahdi/pseudo",			//				chan_dahdi.so
+	'radio'     => "Radio/M-node",			// USBRadio (DSP)		chan_usbradio.so
+	'simpleusb' => "SimpleUSB/M-node",		// SimpleUSB			chan_simpleusb.so
+//	'usrp'      => "USRP/127.0.0.1:34001:32001",	// GNU Radio interface USRP	chan_usrp.sp
+	'voter'     => "Voter/M-node",			// RTCM device			chan_voter.so
     );
 
     $rxChannel = strtolower($rxChannel);
@@ -685,10 +696,19 @@ function ASLCommandValidate($options) {
 		    }
 		}
 		break;
-//	    case "secret" :
-//		break;
-//	    case "user" :
-//		break;
+	    case "secret" :
+		// The AMI secret may only contain letters, numbers, underscore and dash.  It
+		// must also be 12 or more characters in length
+		$valid = validateString($value, "/^[0-9a-zA-Z_-]{12,}$/");
+		if ($valid === NULL) {
+		    throw new Exception("The AMI secret may only contain letters, numbers, underscore and dash. It\n" .
+					"must also be 12 or more characters in length");
+		}
+		break;
+	    case "user" :
+		// for now, no validate
+		$valid = $value;
+		break;
 	    default :
 		die("Validation for \"$requiredArg\" missing\n");
 		break;
