@@ -1,23 +1,27 @@
-prefix = /usr
+#
+# Build variables
+#
+RELVER = 1.0.0
+PKGNAME = asl3-menu
 
-install:
-	install -m 755 scripts/asl-menu		$(DESTDIR)$(prefix)/sbin/
-	install -m 755 scripts/asl-backup-menu	$(DESTDIR)$(prefix)/sbin/
-	install -m 755 scripts/astdn.sh		$(DESTDIR)$(prefix)/sbin/
-	install -m 755 scripts/astres.sh	$(DESTDIR)$(prefix)/sbin/
-	install -m 755 scripts/astup.sh		$(DESTDIR)$(prefix)/sbin/
-	install -m 755 scripts/node-setup	$(DESTDIR)$(prefix)/sbin/
-	install -m 755 scripts/restore-node	$(DESTDIR)$(prefix)/sbin/
-	install -m 755 scripts/save-node	$(DESTDIR)$(prefix)/sbin/
+BUILDABLES =		\
+	scripts		\
+	php-backend
 
-uninstall: 
-	-rm -f $(DESTDIR)$(prefix)/sbin/asl-menu
-	-rm -f $(DESTDIR)$(prefix)/sbin/asl-backup-menu
-	-rm -f $(DESTDIR)$(prefix)/sbin/astdn.sh
-	-rm -f $(DESTDIR)$(prefix)/sbin/astres.sh
-	-rm -f $(DESTDIR)$(prefix)/sbin/astup.sh
-	-rm -f $(DESTDIR)$(prefix)/sbin/node-setup
-	-rm -f $(DESTDIR)$(prefix)/sbin/restore-node
-	-rm -f $(DESTDIR)$(prefix)/sbin/save-node
+ifdef ${DESTDIR}
+DESTDIR=${DESTDIR}
+endif
 
-.PHONY: install uninstall
+ROOT_FILES = LICENSE README.md
+ROOT_INSTALLABLES = $(patsubst %, $(DESTDIR)$(docdir)/%, $(CONF_FILES))
+
+default:
+	@echo This does nothing, use 'make install'
+
+install: $(ROOT_INSTALLABLES)
+	@echo DESTDIR=$(DESTDIR)
+	$(foreach dir, $(BUILDABLES), $(MAKE) -C $(dir) install;)
+
+$(DESTDIR)$(docdir)/%: %
+	install -D -m 0644  $< $@
+
