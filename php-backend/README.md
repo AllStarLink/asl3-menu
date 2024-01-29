@@ -70,7 +70,7 @@ For more information, please refer to
 - `asl-configuration.php --command=module_enable --module=astModule --load=(yes|no)`
 
 ```
-channel = (SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)
+channel = (SimpleUSB|Radio|Pseudo|Voter|PCIx4)
 duplex  = (0|1|2|3|4)
 ```
   

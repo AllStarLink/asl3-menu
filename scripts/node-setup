@@ -424,8 +424,7 @@ do_select_interface() {
 	        "3" "RTCM         : Radio Thin Client or Voter Boards"		\
 	        "4" "Dahdi/pseudo : No radio interface or HUB node"		\
 	        "5" "PCI Quad Radio Card"					\
-	        "6" "RPi Beagle Board"						\
-	        "7" "USRP"							\
+	        "6" "USRP"							\
 	        3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
         return
@@ -437,8 +436,7 @@ do_select_interface() {
         3) do_set_voter		;;
         4) do_set_pseudo	;;
         5) do_set_quadradio	;;
-        6) do_set_beagle	;;
-        7) do_set_usrp		;;
+        6) do_set_usrp		;;
         *) whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH 1 ;;
     esac
 }
@@ -450,7 +448,6 @@ do_noload_chan_modules() {
     sed -i "/^load\s*=>\s*chan_usrp/      s/load/noload/"	$CONFIG_DIR/modules.conf
     sed -i "/^load\s*=>\s*chan_voter/     s/load/noload/"	$CONFIG_DIR/modules.conf
     sed -i "/^load\s*=>\s*chan_pi/        s/load/noload/"	$CONFIG_DIR/modules.conf
-    sed -i "/^load\s*=>\s*chan_beagle/    s/load/noload/"	$CONFIG_DIR/modules.conf
 
     # Comment all rxchannels
     sed -i "s/^rxchannel/; rxchannel/g"				$CONFIG_DIR/rpt.conf
@@ -519,20 +516,6 @@ do_set_quadradio() {
 
     # Set rxchannel (No dahdi/pesudo module?)
     sed -i "/^;\s*rxchannel\s*=\s*Dahdi/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
-
-    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
-
-    AST_RESTART=1
-}
-
-do_set_beagle() {
-    echo "doing do_set_beagle" >>$logfile
-
-    do_noload_chan_modules
-
-    # Load module and set rxchannel
-    sed -i "/^noload.\+chan_beagle/ s/noload/load/"				$CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*Beagle/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 

@@ -41,9 +41,38 @@ include("ami.php");
 //
 
 $aslCommands = array(
+	'node_list' =>  array(
+		'action'  => "ListCategories",
+		'args'    => array(),
+		'help'    => "",
+		'actions' => array(
+			0 => array(
+				'file' => "rpt.conf",
+				'string' => "",
+			),
+		),
+	),
+
+	'node_show' =>  array(
+		'action'  => "GetConfigJSON",
+		'args'    => array("node"),
+		'help'    => "--node=<node>",
+		'actions' => array(
+			0 => array(
+				'file' => "rpt.conf",
+				'string' => "Category: M-node\r\n",
+			),
+			1 => array(
+				'file' => "rpt_http_registrations.conf",
+				'string' => "Category: registrations\r\n",
+			),
+		),
+	),
+
 	'node_create' =>  array(
-		'args' => array("newNode", "iaxIP", "iaxPort"),
-		'help' => "--newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
+		'action'  => "UpdateConfig",
+		'args'    => array("newNode", "iaxIP", "iaxPort"),
+		'help'    => "--newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -59,12 +88,13 @@ $aslCommands = array(
 	),
 
 	'node_create_full' =>  array(
-		'args' => array("newNode", "iaxIP", "iaxPort", "rxChannel", "duplex", "callsign"),
-		'help' => "--newNode=<node> --rxChannel=<channel> --duplex=<duplex> --callsign=<callsign> [--iaxIP=<ip>] [--iaxPort=<port>]"
-			. "\n"
-			. "\nWhere:"
-			. "\n  channel = (SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)"
-			. "\n  duplex  = (0|1|2|3|4)",
+		'action'  => "UpdateConfig",
+		'args'    => array("newNode", "iaxIP", "iaxPort", "rxChannel", "duplex", "callsign"),
+		'help'    => "--newNode=<node> --rxChannel=<channel> --duplex=<duplex> --callsign=<callsign> [--iaxIP=<ip>] [--iaxPort=<port>]"
+			   . "\n"
+			   . "\nWhere:"
+			   . "\n  channel = (SimpleUSB|Radio|Pseudo|Voter|PCIx4)"
+			   . "\n  duplex  = (0|1|2|3|4)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -100,8 +130,9 @@ $aslCommands = array(
 	),
 
 	'node_delete' =>  array(
-		'args' => array("node"),
-		'help' => "--node=<node>",
+		'action'  => "UpdateConfig",
+		'args'    => array("node"),
+		'help'    => "--node=<node>",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -115,8 +146,9 @@ $aslCommands = array(
 	),
 
 	'node_rename' =>  array(
-		'args' => array("node", "newNode", "iaxIP", "iaxPort"),
-		'help' => "--node=<node> --newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
+		'action'  => "UpdateConfig",
+		'args'    => array("node", "newNode", "iaxIP", "iaxPort"),
+		'help'    => "--node=<node> --newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -135,8 +167,9 @@ $aslCommands = array(
 	),
 
 	'node_set_callsign' => array(
-		'args' => array("node", "callsign"),
-		'help' => "--node=<node> --callsign=<callsign>",
+		'action'  => "UpdateConfig",
+		'args'    => array("node", "callsign"),
+		'help'    => "--node=<node> --callsign=<callsign>",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -159,11 +192,12 @@ $aslCommands = array(
 	),
 
 	'node_set_channel' => array(
-		'args' => array("node", "rxChannel"),
-		'help' => "--node=<node> --rxChannel=<channel>"
-			. "\n"
-			. "\nWhere:"
-			. "\n  channel = (SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)",
+		'action'  => "UpdateConfig",
+		'args'    => array("node", "rxChannel"),
+		'help'    => "--node=<node> --rxChannel=<channel>"
+			   . "\n"
+			   . "\nWhere:"
+			   . "\n  channel = (SimpleUSB|Radio|Pseudo|Voter|PCIx4)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -179,8 +213,9 @@ $aslCommands = array(
 	),
 
 	'node_set_duplex' => array(
-		'args' => array("node", "duplex"),
-		'help' => "--node=<node> --duplex=<duplex>"
+		'action'  => "UpdateConfig",
+		'args'    => array("node", "duplex"),
+		'help'    => "--node=<node> --duplex=<duplex>"
 			. "\n"
 			. "\nWhere:"
 			. "\n  duplex = (0|1|2|3|4)",
@@ -199,8 +234,9 @@ $aslCommands = array(
 	),
 
 	'node_set_statpost' => array(
-		'args' => array("node", "enable"),
-		'help' => "--node=<node> --enable=(yes|no)",
+		'action'  => "UpdateConfig",
+		'args'    => array("node", "enable"),
+		'help'    => "--node=<node> --enable=(yes|no)",
 		'actions' => array(
 			0 => array(
 				'file' => "rpt.conf",
@@ -219,9 +255,22 @@ $aslCommands = array(
 		),
 	),
 
+	'ami_show' =>  array(
+		'action'  => "GetConfigJSON",
+		'args'    => array(),
+		'help'    => "",
+		'actions' => array(
+			0 => array(
+				'file' => "manager.conf",
+				'string' => "",
+			),
+		),
+	),
+
 	'ami_set_secret' => array(
-		'args' => array("user", "secret"),
-		'help' => "[--user=<user>] --secret=<secret>",
+		'action'  => "UpdateConfig",
+		'args'    => array("user", "secret"),
+		'help'    => "[--user=<user>] --secret=<secret>",
 		'actions' => array(
 			0 => array(
 				'file' => "manager.conf",
@@ -234,8 +283,9 @@ $aslCommands = array(
 	),
 
 	'module_enable' => array(
-		'args' => array("module", "load"),
-		'help' => "--module=astModule --load=(yes|no)",
+		'action'  => "UpdateConfig",
+		'args'    => array("module", "load"),
+		'help'    => "--module=astModule --load=(yes|no)",
 		'actions' => array(
 			//
 			// NOTE: here, I have broken out the actions thinking
@@ -300,7 +350,7 @@ $aslLongOptions  = array(
     "module:",		// --module=<string>
     "newNode:",		// --newNode=int
     "node:",		// --node=int
-    "rxChannel:",	// --rxChannel=(SimpleUSB|Radio|Pseudo|Voter|Beagle|PCIx4)
+    "rxChannel:",	// --rxChannel=(SimpleUSB|Radio|Pseudo|Voter|PCIx4)
     "secret:",		// --secret=<string>	(e.g. "your-ami-secret")
     "user:",		// --user=<string>	(e.g. "admin")
     // Optional options
@@ -330,9 +380,8 @@ function ASL_set_debug($debug) {
     global $asl_debug;
 
     $asl_debug = $debug;	// ASL
-    AMI_set_debug ($debug);	// AMI
+    AMI_set_debug($debug);	// AMI
 }
-
 
 // RELOAD
 $asl_reload = false;
@@ -433,10 +482,11 @@ function ASLCommandExecute($options) {
     if (ASL_debug()) print "Executing...\n";
 
     // get the actions associated with the command
-    $command = $validOptions['command'];
-    $info    = $aslCommands[$command];
-    $args    = $info['args'];
-    $actions = $info['actions'];
+    $command   = $validOptions['command'];
+    $info      = $aslCommands[$command];
+    $amiAction = $info['action'];
+    $args      = $info['args'];
+    $actions   = $info['actions'];
 
     $srcOrig = "";
     $rcLast = "";
@@ -493,11 +543,92 @@ function ASLCommandExecute($options) {
 	#print "  \$cmdString =\n"; print_r($cmdString);
 
 	// send to AMI
-	$response = AMIcommand($fp,
-			       ASL_reload() ? "yes" : "no",
-			       $srcFile,
-			       $dstFile,
-			       $cmdString);
+	switch ($amiAction) {
+	    case "GetConfigJSON" :
+		// send AMI command
+		$response = AMIRead($fp,
+				    $amiAction,
+				    $srcFile,
+				    $cmdString);
+
+		// remove the leading "JSON:" from the response
+		$json = preg_replace("/^JSON:\s*/", "", $response);
+		if (($json === null) || ($json == $response)) {
+		    throw new Exception("Unexpected AMI response");
+		}
+
+		// decode JSON into [associative] array
+		$settings = json_decode($json, true, 4, JSON_THROW_ON_ERROR);
+
+		switch ($command) {
+		    case "ami_show" :
+			// get the "admin" user settings
+			$settings = $settings["admin"];
+
+			// and output [shell parsable] results
+			foreach ($settings as $key => $value) {
+			    print $key . "=" . "\"" . $value . "\"" . "\n";
+			}
+			break;
+		    case "node_show" :
+			switch ($srcOrig) {
+			    case "rpt.conf" :
+				// get the "node" settings
+				$node = $validOptions['node'];
+				$settings = $settings[$node];
+				break;
+			    case "rpt_http_registrations.conf" :
+				$settings = $settings["registrations"];
+				break;
+			    default :
+				break;
+			}
+
+			// and output [shell parsable] results
+			foreach ($settings as $key => $value) {
+			    print $key . "=" . "\"" . $value . "\"" . "\n";
+			}
+			break;
+		    default :
+			die("No AMI response handler for \"$command\"\n");
+			break;
+		}
+		break;
+	    case "ListCategories" :
+		$response = AMIRead($fp,
+				    $amiAction,
+				    $srcFile,
+				    $cmdString);
+		switch ($command) {
+		    case "node_list" :
+			$categories = preg_split ('/$\R?^/m', $response);
+			foreach ($categories as $category) {
+			    $res = preg_match('/^Category-.*: ([0-9]+)/',
+						"$category",
+						$match,
+						PREG_UNMATCHED_AS_NULL);
+			    if ($res === 1) {
+				print "$match[1]\n";
+			    }
+			};
+			break;
+		    default :
+			print "$response\n";
+			break;
+		}
+		break;
+	    case "UpdateConfiguration" :
+		$response = AMIUpdate($fp,
+				      $amiAction,
+				      ASL_reload() ? "yes" : "no",
+				      $srcFile,
+				      $dstFile,
+				      $cmdString);
+		break;
+	    default :
+		die("No AMI handler for \"$amiAction\"\n");
+		break;
+	}
 
 	if ($srcOrig != $dstFile) {
 	    if (file_exists("/etc/asterisk/" . $dstFile)) {
@@ -559,7 +690,6 @@ function validateBool($bool) {
 //   returns value on success, NULL on error
 function validateChannel($rxChannel): mixed {
     $validChannels = array(
-	'beagle'    => "Beagle/1",			// BeagleBoard			chan_beagle.so
 	'pcix4'     => "Dahdi/1",			// PCI Quad card
 //	'pi'        => "Pi/1",				// Raspberry Pi PiTA
 	'pseudo'    => "Dahdi/pseudo",			//				chan_dahdi.so

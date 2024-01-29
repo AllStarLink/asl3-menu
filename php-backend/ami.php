@@ -35,7 +35,7 @@ function AMIresponse($fp, $actionID) {
 
 	# Looking for our ActionID
 	if ("ActionID: $actionID" == trim($str)) {
-	    $response = $str;
+	    $response = "";
 	    while (TRUE) {
 		$str = fgets($fp);
 		if ($str != "\r\n") {
@@ -90,7 +90,7 @@ function AMIlogin($fp, $user, $password) {
 
     // get the response
     $response = AMIresponse($fp, $actionID);
-    if (AMI_debug()) print "response :\n>>>\n"; print_r($response); print "<<<\n";
+    if (AMI_debug()) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
 
     if (preg_match("/Message: Authentication accepted/", $response) != 1) {
 	throw new Exception("Error: could not login to Asterisk Manager");
@@ -99,18 +99,15 @@ function AMIlogin($fp, $user, $password) {
     return TRUE;
 }
 
-// send AMI command
-function AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString) {
+// send AMI "read" command
+function AMIRead($fp, $action, $filename, $cmdString) {
     // Asterisk Manger Interface needs an "ActionID" so we can find our own response
     $actionID = 'AMI-PHP-' . mt_rand();
 
     // Build the AMI command string
-    $amiString	= "Action: UpdateConfig\r\n"
-		. "ActionID: $actionID\r\n"
-		. "SrcFilename: $srcFile\r\n"
-		. "DstFilename: $dstFile\r\n"
-		. "Reload: $reload\r\n"
-#		. "PreserveEffectiveContext\r\n"	// ?? doesn't this need a value? and is it needed?
+    $amiString	= "ActionID: $actionID\r\n"
+		. "Action: $action\r\n"
+		. "Filename: $filename\r\n"
 		. $cmdString
 		. "\r\n";
     if (AMI_debug()) print "write  :\n>>>\n$amiString<<<\n";
@@ -123,7 +120,35 @@ function AMIcommand($fp, $reload, $srcFile, $dstFile, $cmdString) {
 
     // get the response, but do nothing with it
     $response = AMIresponse($fp, $actionID);
-    if (AMI_debug()) print "response :\n>>>\n"; print_r($response); print "<<<\n";
+    if (AMI_debug()) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
+
+    return $response;
+}
+
+// send AMI "update" command
+function AMIUpdate($fp, $action, $reload, $srcFile, $dstFile, $cmdString) {
+    // Asterisk Manger Interface needs an "ActionID" so we can find our own response
+    $actionID = 'AMI-PHP-' . mt_rand();
+
+    // Build the AMI command string
+    $amiString	= "ActionID: $actionID\r\n"
+		. "Action: $action\r\n"
+		. "SrcFilename: $srcFile\r\n"
+		. "DstFilename: $dstFile\r\n"
+		. "Reload: $reload\r\n"
+		. $cmdString
+		. "\r\n";
+    if (AMI_debug()) print "write  :\n>>>\n$amiString<<<\n";
+
+    // send the command
+    $written = fwrite($fp, $amiString);			// use @fwrite?
+    if ($written === false) {
+	throw new Exception("Error: AMI (command) write failed");
+    }
+
+    // get the response, but do nothing with it
+    $response = AMIresponse($fp, $actionID);
+    if (AMI_debug()) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
 
     return $response;
 }
