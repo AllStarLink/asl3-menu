@@ -84,7 +84,7 @@ $longOpts  = array(
 $options = asl_getopt($shortOpts, $longOpts);
 
 // set "debug"
-ASL_set_debug(array_key_exists('debug',  $options));
+ASL_set_debug(array_key_exists('debug',  $options) ?  $options['debug'] : null);
 
 // are we looking for "help" ?
 if ($argc <= 1) {

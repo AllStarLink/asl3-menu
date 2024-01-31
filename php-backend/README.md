@@ -18,9 +18,10 @@ Usage: asl-configuration.php --help
        asl-configuration.php [--host=<host>] [--reload] --command=<asl-command> [ args ]
 
 Valid ASL commands:
-  node_create, node_create_full, node_delete, node_rename
-  node_set_callsign, node_set_channel, node_set_duplex
-  node_set_statpost, ami_set_secret, module_enable
+  node_list, node_show, node_create, node_create_full, node_delete
+  node_rename, node_set_callsign, node_set_channel, node_set_duplex
+  node_set_password, node_set_statistics, ami_show, ami_set_secret
+  module_enable
 ```
 
 #### The "--host=\<host>" argument and "settings.ini" file :
@@ -41,13 +42,30 @@ user=server1-ami-user
 secret=server1-ami-password
 ```
 
+Note: if the local host is targetted and no "settings.ini" file is found then the command will use the "admin" user settings from `/etc/asterisk/manager.conf`.
+
 #### The "--reload" argument
 
 The `--reload` argument, if specified, will result in the associated asterisk modules being reloaded with any configuration changes being applied.
 
+NOTE: THIS FUNCTIONALITY HAS NOT BEEN TESTED!!!
+
+#### The "--debug" argument
+
+The `--debug` argument (not mentioned in the "usage") can help with debugging the backend code.
+
+* the AMI string is output
+* if `$live_dangerously = true;` is set (in "asl-ami-commands.php") then :
+	* any configuration changes will be written to files with a "-DEBUG" extension.
+	* a `diff` command is executed showing the difference between the origina and updated files.
+
+Using `--debug=2` will provide even more verbose output.
+
 ## Prerequisites
 
 `apt install php-cli`
+
+The `/etc/asterisk/custom` directory MUST exist!
 
 ## Privilege Escalation
 
@@ -56,8 +74,12 @@ In order to update the configurations with this PHP-backend (that uses the AMI c
 For more information, please refer to 
 [https://docs.asterisk.org/Configuration/Dialplan/Privilege-Escalations-with-Dialplan-Functions]()
 
+Note: so far, this does not appear to be an issue :-)
+
 ## Examples
 
+- `asl-configuration.php --command=node_list`
+- `asl-configuration.php --command=node_show --node=<node>`
 - `asl-configuration.php --command=node_create --newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]`
 - `asl-configuration.php --command=node_create_full --newNode=<node> --rxChannel=<channel> --duplex=<duplex> --callsign=<callsign> [--iaxIP=<ip>] [--iaxPort=<port>]`
 - `asl-configuration.php --command=node_delete --node=<node>`
@@ -73,6 +95,4 @@ For more information, please refer to
 channel = (SimpleUSB|Radio|Pseudo|Voter|PCIx4)
 duplex  = (0|1|2|3|4)
 ```
-  
-
 

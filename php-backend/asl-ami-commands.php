@@ -8,6 +8,8 @@
 set_include_path("/usr/lib/asterisk/php-support");
 include("ami.php");
 
+$live_dangerously = false;
+
 //error_reporting(0);
 
 //
@@ -89,11 +91,27 @@ $aslCommands = array(
 							 . "Var-000000: register\r\n"
 							 . "Value-000000:>M-newNode:M-password@register.allstarlink.org\r\n"
 			),
+			2 => array(
+				'action' => "UpdateConfig",
+				'file'   => "iax.conf",
+				'string' => "Action-000000: Update\r\n"
+							 . "Cat-000000: general\r\n"
+							 . "Var-000000: bindport\r\n"
+							 . "Value-000000:M-iaxPort\r\n"
+			),
+			3 => array(
+				'action' => "UpdateConfig",
+				'file'   => "extensions.conf",
+				'string' => "Action-000000: Update\r\n"
+							 . "Cat-000000: globals\r\n"
+							 . "Var-000000: NODE\r\n"
+							 . "Value-000000:M-newNode\r\n"
+			),
 		),
 	),
 
 	'node_create_full' =>  array(
-		'args'    => array("newNode", "password", "iaxIP", "iaxPort", "rxChannel", "duplex", "callsign"),
+		'args'    => array("newNode", "password", "rxChannel", "duplex", "callsign", "iaxIP", "iaxPort"),
 		'help'    => "--newNode=<node> --password=<password> --rxChannel=<channel> --duplex=<duplex> --callsign=<callsign> [--iaxIP=<ip>] [--iaxPort=<port>]"
 			   . "\n"
 			   . "\nWhere:"
@@ -139,6 +157,22 @@ $aslCommands = array(
 							 . "Var-000000: register\r\n"
 							 . "Value-000000:>M-newNode:M-password@register.allstarlink.org\r\n"
 			),
+			2 => array(
+				'action' => "UpdateConfig",
+				'file'   => "iax.conf",
+				'string' => "Action-000000: Update\r\n"
+							 . "Cat-000000: general\r\n"
+							 . "Var-000000: bindport\r\n"
+							 . "Value-000000:M-iaxPort\r\n"
+			),
+			3 => array(
+				'action' => "UpdateConfig",
+				'file'   => "extensions.conf",
+				'string' => "Action-000000: Update\r\n"
+							 . "Cat-000000: globals\r\n"
+							 . "Var-000000: NODE\r\n"
+							 . "Value-000000:M-newNode\r\n"
+			),
 		),
 	),
 
@@ -175,7 +209,7 @@ $aslCommands = array(
 
 	'node_rename' =>  array(
 		'args'    => array("node", "newNode"),
-		'help'    => "--node=<node> --newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
+		'help'    => "--node=<node> --newNode=<node>",
 		'x-args'  => array(
 					// rpt.conf
 					"iaxIP",
@@ -216,6 +250,35 @@ $aslCommands = array(
 							 . "Var-000000: register\r\n"
 							 . "Match-000000:M-node:X-password@register.allstarlink.org\r\n"
 							 . "Value-000000:>M-newNode:X-password@register.allstarlink.org\r\n"
+			),
+			4 => array(
+				'action' => "UpdateConfig",
+				'file'   => "extensions.conf",
+				'string' => "Action-000000: Update\r\n"
+							 . "Cat-000000: globals\r\n"
+							 . "Var-000000: NODE\r\n"
+							 . "Value-000000:M-newNode\r\n"
+			),
+			5 => array(
+				'action' => "UpdateConfig",
+				'file'   => "simpleusb.conf",
+				'string' => "Action-000000: RenameCat\r\n"
+							 . "Cat-000000: M-node\r\n"
+							 . "Value-000000: M-newNode\r\n"
+			),
+			6 => array(
+				'action' => "UpdateConfig",
+				'file'   => "usbradio.conf",
+				'string' => "Action-000000: RenameCat\r\n"
+							 . "Cat-000000: M-node\r\n"
+							 . "Value-000000: M-newNode\r\n"
+			),
+			7 => array(
+				'action' => "UpdateConfig",
+				'file'   => "voter.conf",
+				'string' => "Action-000000: RenameCat\r\n"
+							 . "Cat-000000: M-node\r\n"
+							 . "Value-000000: M-newNode\r\n"
 			),
 		),
 	),
@@ -317,7 +380,7 @@ $aslCommands = array(
 		),
 	),
 
-	'node_set_statpost' => array(
+	'node_set_statistics' => array(
 		'args'    => array("node", "enable"),
 		'help'    => "--node=<node> --enable=(yes|no)",
 		'actions' => array(
@@ -442,7 +505,7 @@ $aslLongOptions  = array(
     "secret:",		// --secret=<string>		(e.g. "your-ami-secret")
     "user:",		// --user=<string>		(e.g. "admin")
     // Optional options
-    "debug",		// --debug
+    "debug::",		// --debug[=(0,1,2)]
     "reload",		// --reload
 );
 #print "\$aslLongOptions: "; print_r($aslLongOptions);
@@ -462,13 +525,31 @@ function ASL_usage_prefix()		{ global $asl_usage_prefix; return $asl_usage_prefi
 function ASL_set_usage_prefix($prefix)	{ global $asl_usage_prefix; $asl_usage_prefix = $prefix; }
 
 // DEBUG
-$asl_debug = false;
-function ASL_debug()			{ global $asl_debug; return $asl_debug;   }
+$asl_debug = 0;
+function ASL_debug($level = 1)			{ global $asl_debug; return ($asl_debug >= $level);   }
 function ASL_set_debug($debug) {
     global $asl_debug;
 
-    $asl_debug = $debug;	// ASL
-    AMI_set_debug($debug);	// AMI
+    if (is_null($debug)) {
+	$asl_debug = 0;
+    } elseif (is_bool($debug)) {
+	$asl_debug = 1;
+    } else {
+	// ASL
+	$valid = filter_var($debug, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+	if (!is_null($valid)) {
+	    $asl_debug = $valid ? 1 : 0;
+	} else {
+	    $valid = filter_var($debug, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE);
+	    if (!is_null($valid)) {
+		$asl_debug = $valid;
+	    } else {
+		throw new Exception("Unexpected value for \"--debug\"");
+	    }
+	}
+    }
+
+    AMI_set_debug($asl_debug);	// AMI
 }
 
 // RELOAD
@@ -529,6 +610,7 @@ function getTargetAMIHostInfo($targetHost) {
 
 function ASLCommandExecute($options) {
     global $aslCommands;
+    global $live_dangerously;
 
     // first, we validate the options
     try {
@@ -636,7 +718,7 @@ function ASLCommandExecute($options) {
 	    // we are updating a new file
 	    $srcOrig = $srcFile;
 	    $dstFile = $srcFile;
-	    if (ASL_debug()) {
+	    if ($live_dangerously && ASL_debug()) {
 		$dstFile .= "-DEBUG";
 	    }
 	} else {
@@ -762,12 +844,16 @@ function ASLCommandExecute($options) {
 		break;
 
 	    case "UpdateConfig" :
-		$response = AMIUpdate($fp,
-				      $amiAction,
-				      ASL_reload() ? "yes" : "no",
-				      $srcFile,
-				      $dstFile,
-				      $cmdString);
+		try {
+		    $response = AMIUpdate($fp,
+					  $amiAction,
+					  ASL_reload() ? "yes" : "no",
+					  $srcFile,
+					  $dstFile,
+					  $cmdString);
+		} catch(Exception $e) {
+		    throw $e;
+		}
 		$updated = true;
 		break;
 	    default :
@@ -776,7 +862,7 @@ function ASLCommandExecute($options) {
 	}
 
 	if ($srcOrig != $dstFile) {
-	    if ($updated && file_exists("/etc/asterisk/" . $dstFile)) {
+	    if ($live_dangerously && $updated && file_exists("/etc/asterisk/" . $dstFile)) {
 		// if we made changes
 		$srcLast = $dstFile;
 		$dstLast = $dstFile;
@@ -912,8 +998,8 @@ function validateString($string, $pattern) {
 function ASLCommandValidate($options) {
     global $aslCommands;
 
-    if (ASL_debug()) print "Validating...\n";
-#   if (ASL_debug()) print "\$options = "; print_r($options);
+    if (ASL_debug(2)) print "Validating...\n";
+#   if (ASL_debug(2)) print "\$options = "; print_r($options);
 
     // check that we have an AMI host
     if (! array_key_exists('host', $options)) {
@@ -946,7 +1032,7 @@ function ASLCommandValidate($options) {
 	}
 
 	$value = $options[$requiredArg];
-	if (ASL_debug()) print "  processing arg(\"$requiredArg\") = \"$value\"\n";
+	if (ASL_debug(2)) print "  processing arg(\"$requiredArg\") = \"$value\"\n";
 
 	$valid = null;
 	switch ($requiredArg) {
@@ -1027,7 +1113,7 @@ function ASLCommandValidate($options) {
 	    // replace with the validated/sanitized value
 	    $oType = gettype($value);
 	    $nType = gettype($valid);
-	    if (ASL_debug()) {
+	    if (ASL_debug(2)) {
 		print "    replacing \"$requiredArg\" with validated/sanitized value: "
 		    . "\"$value\" ($oType)"
 		    . " -->"

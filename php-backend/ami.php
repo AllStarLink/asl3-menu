@@ -24,8 +24,8 @@
 //error_reporting(0);
 
 // DEBUG
-$ami_debug = false;
-function AMI_debug()		{ global $ami_debug; return $ami_debug;   }
+$ami_debug = 0;
+function AMI_debug($level = 1)	{ global $ami_debug; return ($ami_debug >= $level);   }
 function AMI_set_debug($debug)	{ global $ami_debug; $ami_debug = $debug; }
 
 // Reads output lines from Asterisk Manager
@@ -80,7 +80,7 @@ function AMIlogin($fp, $user, $password) {
 		. "Username: $user\r\n"
 		. "Secret: $password\r\n"
 		. "\r\n";
-    if (AMI_debug()) print "write  :\n>>>\n$amiString<<<\n";
+    if (AMI_debug(2)) print "write  :\n>>>\n$amiString<<<\n";
 
     // send the command
     $written = fwrite($fp, $amiString);			// use @fwrite?
@@ -90,7 +90,7 @@ function AMIlogin($fp, $user, $password) {
 
     // get the response
     $response = AMIresponse($fp, $actionID);
-    if (AMI_debug()) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
+    if (AMI_debug(2)) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
 
     if (preg_match("/Message: Authentication accepted/", $response) != 1) {
 	throw new Exception("Error: could not login to Asterisk Manager");
@@ -110,7 +110,7 @@ function AMIRead($fp, $action, $filename, $cmdString) {
 		. "Filename: $filename\r\n"
 		. $cmdString
 		. "\r\n";
-    if (AMI_debug()) print "write  :\n>>>\n$amiString<<<\n";
+    if (AMI_debug(1)) print "write  :\n>>>\n$amiString<<<\n";
 
     // send the command
     $written = fwrite($fp, $amiString);			// use @fwrite?
@@ -120,7 +120,7 @@ function AMIRead($fp, $action, $filename, $cmdString) {
 
     // get the response, but do nothing with it
     $response = AMIresponse($fp, $actionID);
-    if (AMI_debug()) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
+    if (AMI_debug(2)) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
 
     return $response;
 }
@@ -138,7 +138,7 @@ function AMIUpdate($fp, $action, $reload, $srcFile, $dstFile, $cmdString) {
 		. "Reload: $reload\r\n"
 		. $cmdString
 		. "\r\n";
-    if (AMI_debug()) print "write  :\n>>>\n$amiString<<<\n";
+    if (AMI_debug(1)) print "write  :\n>>>\n$amiString<<<\n";
 
     // send the command
     $written = fwrite($fp, $amiString);			// use @fwrite?
@@ -148,7 +148,21 @@ function AMIUpdate($fp, $action, $reload, $srcFile, $dstFile, $cmdString) {
 
     // get the response, but do nothing with it
     $response = AMIresponse($fp, $actionID);
-    if (AMI_debug()) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
+    if (AMI_debug(2)) { print "response :\n>>>>\n"; print_r($response); print "<<<<\n"; }
+
+    if (preg_match("/^Message: (.+)/", $response, $match, PREG_UNMATCHED_AS_NULL) == 1) {
+#print "Found \"Message:\"\n"; print_r($match); print "\n";
+	$message = trim($match[1]);
+	switch ($message) {
+	    case "File requires escalated priveledges" :
+	    case "Update did not complete successfully" :
+	    case "Save of config failed" :
+		$message .= " ($dstFile)";
+		break;
+	}
+
+	throw new Exception($message);
+    }
 
     return $response;
 }
