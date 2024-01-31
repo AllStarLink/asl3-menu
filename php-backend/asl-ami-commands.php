@@ -59,14 +59,9 @@ $aslCommands = array(
 		'help'    => "--node=<node>",
 		'actions' => array(
 			0 => array(
-				'action' => "GetConfigJSON",
+				'action' => "GetConfig",
 				'file'   => "rpt.conf",
 				'string' => "Category: M-node\r\n"
-			),
-			1 => array(
-				'action' => "GetConfig",
-				'file'   => "rpt_http_registrations.conf",
-				'string' => "Category: registrations\r\n"
 			),
 		),
 	),
@@ -150,10 +145,10 @@ $aslCommands = array(
 	'node_delete' =>  array(
 		'args'    => array("node"),
 		'help'    => "--node=<node>",
-		'x-args'  => array("password"),		// needed to delete registration
+		'x-args'  => array("password"),
 		'actions' => array(
 			0 => array(
-				'action' => "GetConfig",
+				'action' => "GetConfig",	// "password"
 				'file'   => "rpt_http_registrations.conf",
 				'string' => "Category: registrations\r\n"
 			),
@@ -179,16 +174,27 @@ $aslCommands = array(
 	),
 
 	'node_rename' =>  array(
-		'args'    => array("node", "newNode", "iaxIP", "iaxPort"),
+		'args'    => array("node", "newNode"),
 		'help'    => "--node=<node> --newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
-		'x-args'  => array("password"),		// needed to rename registration
+		'x-args'  => array(
+					// rpt.conf
+					"iaxIP",
+					"iaxPort",
+					// rpt_http_registratons.conf
+					"password",
+				  ),
 		'actions' => array(
 			0 => array(
-				'action' => "GetConfig",
+				'action' => "GetConfig",	// "iaxIP", "iaxPort"
+				'file'   => "rpt.conf",
+				'string' => "Category: nodes\r\n"
+			),
+			1 => array(
+				'action' => "GetConfig",	// "password"
 				'file'   => "rpt_http_registrations.conf",
 				'string' => "Category: registrations\r\n"
 			),
-			1 => array(
+			2 => array(
 				'action' => "UpdateConfig",
 				'file'   => "rpt.conf",
 				'string' => "Action-000000: RenameCat\r\n"
@@ -200,23 +206,15 @@ $aslCommands = array(
 					  . "Action-000002: Append\r\n"
 							 . "Cat-000002: nodes\r\n"
 							 . "Var-000002: M-newNode\r\n"
-							 . "Value-000002: radio@M-iaxIP:M-iaxPort/M-newNode,NONE\r\n"
-			),
-			2 => array(
-				'action' => "UpdateConfig",
-				'file'   => "rpt_http_registrations.conf",
-				'string' => "Action-000000: Delete\r\n"
-							 . "Cat-000000: registrations\r\n"
-							 . "Var-000000: register\r\n"
-							 . "Match-000000:M-node:X-password@register.allstarlink.org\r\n"
-							 . "Value-000000:M-node:X-password@register.allstarlink.org\r\n"
+							 . "Value-000002: radio@X-iaxIP:X-iaxPort/M-newNode,NONE\r\n"
 			),
 			3 => array(
 				'action' => "UpdateConfig",
-				'file' => "rpt_http_registrations.conf",
-				'string' => "Action-000000: Append\r\n"
+				'file'   => "rpt_http_registrations.conf",
+				'string' => "Action-000000: Update\r\n"
 							 . "Cat-000000: registrations\r\n"
 							 . "Var-000000: register\r\n"
+							 . "Match-000000:M-node:X-password@register.allstarlink.org\r\n"
 							 . "Value-000000:>M-newNode:X-password@register.allstarlink.org\r\n"
 			),
 		),
@@ -292,10 +290,10 @@ $aslCommands = array(
 	'node_set_password' =>  array(
 		'args'    => array("node", "password"),
 		'help'    => "--node=<node> --password=<password>",
-		'x-args'  => array("password"),		// needed to delete registration
+		'x-args'  => array("password"),
 		'actions' => array(
 			0 => array(
-				'action' => "GetConfig",
+				'action' => "GetConfig",	// "password"
 				'file'   => "rpt_http_registrations.conf",
 				'string' => "Category: registrations\r\n"
 			),
@@ -347,9 +345,9 @@ $aslCommands = array(
 		'help'    => "",
 		'actions' => array(
 			0 => array(
-				'action' => "GetConfigJSON",
+				'action' => "GetConfig",
 				'file'   => "manager.conf",
-				'string' => ""
+				'string' => "Category: admin\r\n"
 			),
 		),
 	),
@@ -458,7 +456,7 @@ $aslOptionDefaults = array(
     "user"    => "admin",	// the AMI user
 );
 
-// DEBUG
+// USAGE
 $asl_usage_prefix = "";
 function ASL_usage_prefix()		{ global $asl_usage_prefix; return $asl_usage_prefix;    }
 function ASL_set_usage_prefix($prefix)	{ global $asl_usage_prefix; $asl_usage_prefix = $prefix; }
@@ -576,16 +574,17 @@ function ASLCommandExecute($options) {
     $info      = $aslCommands[$command];
     $args      = $info['args'];
     $actions   = $info['actions'];
-    $x_args    = $info['x-args'];
+    $x_args    = array_key_exists('x-args', $info) ? $info['x-args'] : null;
 
     $srcOrig = "";
-    $rcLast = "";
+    $srcLast = "";
     $dstLast = "";
 
     $x_values = array();
 
     // iterate over the actions
     foreach ($actions as $key => $action) {
+	$updated = false;
 
 	// for actions with an 'enable' key, process conditionally
 	if (array_key_exists('enable', $action)) {
@@ -606,7 +605,7 @@ function ASLCommandExecute($options) {
 	// the AMI string to be executed
 	$cmdString = $action['string'];
 
-	// apply substitutions
+	// apply [command line] substitutions
 	foreach ($args as $arg) {
 	    $match = "M-" . $arg;
 	    $value = $validOptions[$arg];
@@ -618,14 +617,16 @@ function ASLCommandExecute($options) {
 	    $cmdString = str_replace($match, $value, $cmdString);
 	}
 
-	if (($x_args != null) && (count($x_values) > 0)) {
-	    // apply substitutions
+	// apply [configuration file] substitutions
+	if ($x_args != null) {
 	    foreach ($x_args as $arg) {
-		$match = "X-" . $arg;
-		$value = $x_values[$arg];
+		if (array_key_exists($arg, $x_values)) {
+		    $match = "X-" . $arg;
+		    $value = $x_values[$arg];
 
-		// update $cmdString
-		$cmdString = str_replace($match, $value, $cmdString);
+		    // update $cmdString
+		    $cmdString = str_replace($match, $value, $cmdString);
+		}
 	    }
 	}
 
@@ -664,6 +665,7 @@ function ASLCommandExecute($options) {
 		foreach ($lines as $line) {
 #print "line = \"$line\"\n";
 		    if (str_starts_with($line, "Category-")) {
+			$category = preg_replace("/^(.+): (.*)$/", "$2", $line);
 			continue;
 		    }
 
@@ -681,77 +683,58 @@ function ASLCommandExecute($options) {
 			    // current settings for subsequent updates
 			    //
 			    switch ($srcOrig) {
+				case "rpt.conf" :
+				    $node = $validOptions['node'];
+
+				    switch ($category) {
+					case "nodes" :
+					    // 1998 = radio@127.0.0.1/1998,NONE
+					    // 1001 = radio@192.168.1.8:4568/1001,NONE
+					    $iaxIP = preg_filter("/^" . $node . "=radio@([0-9]+.[0-9]+.[0-9]+.[0-9]+)[:\/].*/",
+								 "$1",
+								 $line);
+					    if ($iaxIP != null) {
+						$x_values["iaxIP"]   = $iaxIP;
+						$x_values["iaxPort"] = 4589;	// default port
+					    }
+
+					    $iaxPort = preg_filter("/^" . $node . "=radio@[0-9]+.[0-9]+.[0-9]+.[0-9]+:([0-9]+)\/.*/",
+								   "$1",
+								   $line);
+					    if ($iaxPort != null) {
+						$x_values["iaxPort"] = $iaxPort;
+					    }
+					    break;
+
+					case $node :
+					    break;
+				    }
+				    break;
+
 				case "rpt_http_registrations.conf" :
 				    // register=xxxxxx:78f9cda2453b@register.allstarlink.org
 				    $node = $validOptions['node'];
 				    $password = preg_filter("/^register=" . $node . ":(.+)@register.allstarlink.org/",
-							 "$1",
-							 $line);
+							    "$1",
+							    $line);
 				    if ($password != null) {
-print "  setting x_args[\"password\"] = $password\n";
 					$x_values["password"] = $password;
-#print "x_values = "; print_r($x_values); print "\n";
 				    }
 				    break;
+
 				default :
 				    break;
 			    }
+
+			    // all done
+			    continue;
 			}
+
+			// "show" the configuration settings
+			print "$line\n";
 		    }
 		}
 
-		break;
-
-	    case "GetConfigJSON" :
-		// send AMI command
-		$response = AMIRead($fp,
-				    $amiAction,
-				    $srcFile,
-				    $cmdString);
-
-		// remove the leading "JSON:" from the response
-		$json = preg_replace("/^JSON:\s*/", "", $response);
-		if (($json === null) || ($json == $response)) {
-		    throw new Exception("Unexpected AMI response");
-		}
-
-		// decode JSON into [associative] array
-		$settings = json_decode($json, true, 4, JSON_THROW_ON_ERROR);
-
-		switch ($command) {
-		    case "ami_show" :
-			// get the "admin" user settings
-			$settings = $settings["admin"];
-
-			// and output [shell parsable] results
-			foreach ($settings as $key => $value) {
-			    print $key . "=" . "\"" . $value . "\"" . "\n";
-			}
-			break;
-		    case "node_show" :
-			switch ($srcOrig) {
-			    case "rpt.conf" :
-				// get the "node" settings
-				$node = $validOptions['node'];
-				$settings = $settings[$node];
-				break;
-			    case "rpt_http_registrations.conf" :
-				$settings = $settings["registrations"];
-print "registrations =\n"; print_r($settings);
-				break;
-			    default :
-				break;
-			}
-
-			// and output [shell parsable] results
-			foreach ($settings as $key => $value) {
-			    print $key . "=" . "\"" . $value . "\"" . "\n";
-			}
-			break;
-		    default :
-			die("No AMI response handler for \"$command\"\n");
-			break;
-		}
 		break;
 
 	    case "ListCategories" :
@@ -785,6 +768,7 @@ print "registrations =\n"; print_r($settings);
 				      $srcFile,
 				      $dstFile,
 				      $cmdString);
+		$updated = true;
 		break;
 	    default :
 		die("No AMI handler for \"$amiAction\"\n");
@@ -792,7 +776,7 @@ print "registrations =\n"; print_r($settings);
 	}
 
 	if ($srcOrig != $dstFile) {
-	    if (file_exists("/etc/asterisk/" . $dstFile)) {
+	    if ($updated && file_exists("/etc/asterisk/" . $dstFile)) {
 		// if we made changes
 		$srcLast = $dstFile;
 		$dstLast = $dstFile;
