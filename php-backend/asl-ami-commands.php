@@ -476,7 +476,7 @@ function ASLCommandList() {
     global $aslCommands;
 
     return (array_keys($aslCommands));
-}                           
+}
 
 // ASL Command Options :
 //
@@ -591,7 +591,7 @@ function getTargetAMIHostInfo($targetHost) {
 	    if (array_key_exists('general',  $config)			&&
 		array_key_exists('bindaddr', $config['general'])	&&
 		array_key_exists('port',     $config['general'])	&&
-		array_key_exists('admin',    $config)			&&	
+		array_key_exists('admin',    $config)			&&
 		array_key_exists('secret',   $config['admin'  ])) {
 		$host   = $config['general']['bindaddr'];
 		$port   = $config['general']['port'];
