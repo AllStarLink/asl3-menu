@@ -62,6 +62,7 @@ $aslCommands = array(
 		'actions' => array(
 			0 => array(
 				'action' => "GetConfig",
+				'k-v'    => true,
 				'file'   => "rpt.conf",
 				'string' => "Category: M-node\r\n"
 			),
@@ -743,9 +744,21 @@ function ASLCommandExecute($options) {
 		// split the response
 		$lines = preg_split('/\r\n|\n|\r/', $response);
 
+		//
+		// In some cases, we are reporting configurations with
+		// key/value content.  Because the "GetConfig" action
+		// returns variables defined in both the [template] and
+		// the [category] instances there is the possibility of
+		// a variable being reported more than once.
+		//
+		// If "k-v" is included in the actions we accumulate
+		// the key/value pairs and later report only the last
+		// value from reported by "GetConfig"..
+		//
+		$lines_kv = array();
+
 		// process the configuration
 		foreach ($lines as $line) {
-#print "line = \"$line\"\n";
 		    if (str_starts_with($line, "Category-")) {
 			$category = preg_replace("/^(.+): (.*)$/", "$2", $line);
 			continue;
@@ -757,7 +770,6 @@ function ASLCommandExecute($options) {
 
 		    if (str_starts_with($line, "Line-")) {
 			$line = preg_replace("/^(.+): (.*)$/", "$2", $line);
-#print "LINE = \"$line\"\n";
 
 			if (array_key_exists('x-args', $info)) {
 			    //
@@ -807,14 +819,27 @@ function ASLCommandExecute($options) {
 				default :
 				    break;
 			    }
+			    continue;		// all done
 
-			    // all done
-			    continue;
+			} elseif (array_key_exists('k-v', $action)) {
+			    // extract tke key/value setting
+			    $kv = explode("=", $line, 2);
+			    if (count($kv) == 2) {
+				$lines_kv[$kv[0]] = $kv[1];
+				continue;	// save the key/value
+			    }
+
 			}
 
-			// "show" the configuration settings
+			// "show" the configuration line
 			print "$line\n";
 		    }
+		}
+
+		// "show" any key/value configuration settings
+		ksort($lines_kv);
+		foreach ($lines_kv as $key => $value) {
+		    print "$key=$value\n";
 		}
 
 		break;

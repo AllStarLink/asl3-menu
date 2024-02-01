@@ -16,6 +16,9 @@ Valid ASL commands:
 
 - Expand list of allowed rpt.conf cmds
 	- Q? what's missing?
+		- Maybe "--node\_set\_value --node\_key=<key> --node\_value=<value>" ?
+			- Need list of keys we are OK to update
+			- Need validation information for the associated values
 - Add high level commands
 	- Q? what's needed?
 - Build other .conf file allowed cmds
