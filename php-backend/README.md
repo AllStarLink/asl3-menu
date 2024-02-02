@@ -20,8 +20,7 @@ Usage: asl-configuration.php --help
 Valid ASL commands:
   node_list, node_show, node_create, node_create_full, node_delete
   node_rename, node_set_callsign, node_set_channel, node_set_duplex
-  node_set_password, node_set_statistics, ami_show, ami_create
-  ami_set_secret, module_enable
+  node_set_ipport, node_set_password, node_set_statistics, ami_show
 ```
 
 #### The "--host=\<host>" argument and "settings.ini" file :
@@ -89,6 +88,7 @@ Note: so far, this does not appear to be an issue :-)
 - `asl-configuration.php --command=node_rename --node=<node> --newNode=<node>`
 - `asl-configuration.php --command=node_set_callsign --node=<node> --callsign=<callsign>`
 - `asl-configuration.php --command=node_set_channel --node=<node> --rxChannel=<channel>`
+- `asl-configuration.php --command=node_set_ipport --new=<node> [--iaxIP=<ip>] [--iaxPort=<port>]`
 - `asl-configuration.php --command=node_set_password --node=<node> --password=<password>`
 - `asl-configuration.php --command=node_set_statistics --node=<node> --enable=(yes|no)`
 - `asl-configuration.php --command=ami_show [--user=<user>]`

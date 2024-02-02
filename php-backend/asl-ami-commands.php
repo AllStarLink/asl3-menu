@@ -349,6 +349,28 @@ $aslCommands = array(
 		),
 	),
 
+	'node_set_ipport' =>  array(
+		'args'    => array("node", "iaxIP", "iaxPort"),
+		'help'    => "--new=<node> [--iaxIP=<ip>] [--iaxPort=<port>]",
+		'x-args'  => array("iaxIP", "iaxPort"),
+		'actions' => array(
+			0 => array(
+				'action' => "GetConfig",	// "iaxIP", "iaxPort"
+				'file'   => "rpt.conf",
+				'string' => "Category: nodes\r\n"
+			),
+			1 => array(
+				'action' => "UpdateConfig",
+				'file'   => "rpt.conf",
+				'string' => "Action-000000: Update\r\n"
+							 . "Cat-000000: nodes\r\n"
+							 . "Var-000000: M-node\r\n"
+							 . "Match-000000: radio@X-iaxIP:X-iaxPort/M-node,NONE\r\n"
+							 . "Value-000000: radio@M-iaxIP:M-iaxPort/M-node,NONE\r\n"
+			),
+		),
+	),
+
 	'node_set_password' =>  array(
 		'args'    => array("node", "password"),
 		'help'    => "--node=<node> --password=<password>",
