@@ -1,30 +1,103 @@
-# Php Backend
-Php backend is part of the Allstar menu.  It uses the Asterisk Manager Interface UpdateConfig action (https://asterisk.phreaknet.org/#manageraction-UpdateConfig) to provide an abstraction layer to the rather complex AMI. This script is a backend, not an end-user interface. It may be run from the command line as follows:
+# PHP Backend
 
-## ami.php
-Usage is `ami.php host reload fileAlias cmdAlias parameter [parameter] ...`
-### host:
- Selects the target Allstar server. Provides hostname:port, id and password from settings.ini
-### reload:
-Is `no` (case insensitive) or module to reload. Use only ‘no’ for now.
-### fileAlias:
-Is shorthand to allowed conf files for security, validation and ease of use. The `test` alias is for experimentation. Copy one of the conf files to /etc/asterisk/test.txt.
-- `rpt = /etc/asterisk/rpt.conf`
-- `ami = /etc/asterisk/manger.conf`
-- `test = /etc/asterisk/test.txt`
-### cmdAlias:
-Is shorthand to Allstar commands for security, validation and ease of use. Examples below. If cmdAilas is not provided a list of valid commands is printed.
-### parameters:
-Each command has a required number of parameters. CLI prompts required number, variables and values.
+THe PHP backend is part of the Allstar menu.
+It uses the Asterisk Manager Interface "UpdateConfig" action to provide an abstraction layer to the rather complex AMI.
+
+More informatioin on the AMI "UpdateConfig" can be found at [https://asterisk.phreaknet.org/#manageraction-UpdateConfig](https://asterisk.phreaknet.org/#manageraction-UpdateConfig)
+
+Note: this script is a backend, not an end-user interface.
+The script may be run from the command line as follows:
+
+## The **`asl-configuration.php`** command :
+
+The base command line usage is :
+
+```
+Usage: asl-configuration.php --help
+       asl-configuration.php --help=<asl-command>
+       asl-configuration.php [--host=<host>] [--reload] --command=<asl-command> [ args ]
+
+Valid ASL commands:
+  node_list, node_show, node_create, node_create_full, node_delete
+  node_rename, node_set_callsign, node_set_channel, node_set_duplex
+  node_set_ipport, node_set_password, node_set_statistics, ami_show
+```
+
+#### The "--host=\<host>" argument and "settings.ini" file :
+
+The `--host=<host>` argument can be used to request changes to a specific/target AllStar server configuration.  If not provided, the changes will be made to the local host ("localhost").  The configuration of each target server configuration can be stored in the "settings.ini" file.
+
+The format of the "settings.ini" file is :
+
+```
+[localhost]
+host=127.0.0.1
+user=ami-user			(e.g. "admin")
+secret=ami-password
+
+[server1]
+host=8.8.8.8
+user=server1-ami-user
+secret=server1-ami-password
+```
+
+Note: if the local host is targetted and no "settings.ini" file is found then the command will use the "admin" user settings from `/etc/asterisk/manager.conf`.
+
+#### The "--reload" argument
+
+The `--reload` argument, if specified, will result in the associated asterisk modules being reloaded with any configuration changes being applied.
+
+NOTE: THIS FUNCTIONALITY HAS NOT BEEN TESTED!!!
+
+#### The "--debug" argument
+
+The `--debug` argument (not mentioned in the "usage") can help with debugging the backend code.
+
+* the string passed to AMI is reported
+* any changes are written to a configuration file with a "-DEBUG" suffix
+
+Note: writing to this alternate file REQUIRES one of the following conditions :
+
+1. the "-DEBUG" file must already exist
+2. the "live_dangerously" setting must be enabled in the "/etc/asterisk/asterisk.conf" file
+
+Using `--debug=2` will provide even more verbose output.
 
 ## Prerequisites
+
 `apt install php-cli`
-### Privilege Escalations
-`live_dangerously = yes` in asterisk.conf is necessary to use these AMI commands.
-https://docs.asterisk.org/Configuration/Dialplan/Privilege-Escalations-with-Dialplan-Functions/
+
+The `/etc/asterisk/custom` directory MUST exist!
+
+## Privilege Escalation
+
+In order to update the configurations with this PHP-backend (that uses the AMI commands) you must enable/add `live_dangerously = yes` in the "/etc/asterisk/asterisk.conf" file.
+
+For more information, please refer to 
+[https://docs.asterisk.org/Configuration/Dialplan/Privilege-Escalations-with-Dialplan-Functions]()
+
+Note: so far, this does not appear to be an issue :-)
 
 ## Examples
-- `ami.php localhost No test rpt_node_create 2000 127.0.0.1:4569`
-- `ami.php localhost No test rpt_node_delete 2000`
-- `ami.php localhost No test rpt_node_rename 2000 1000 127.0.0.1:4569`
-- `ami.php localhost no test ami_set_secret admin AneWSecret`
+
+- `asl-configuration.php --command=node_list`
+- `asl-configuration.php --command=node_show --node=<node>`
+- `asl-configuration.php --command=node_create --newNode=<node> --password=<password> [--iaxIP=<ip>] [--iaxPort=<port>]`
+- `asl-configuration.php --command=node_create_full --newNode=<node> --password=<password> --rxChannel=<channel> --duplex=<duplex> --callsign=<callsign> [--iaxIP=<ip>] [--iaxPort=<port>]`
+- `asl-configuration.php --command=node_delete --node=<node>`
+- `asl-configuration.php --command=node_rename --node=<node> --newNode=<node>`
+- `asl-configuration.php --command=node_set_callsign --node=<node> --callsign=<callsign>`
+- `asl-configuration.php --command=node_set_channel --node=<node> --rxChannel=<channel>`
+- `asl-configuration.php --command=node_set_ipport --new=<node> [--iaxIP=<ip>] [--iaxPort=<port>]`
+- `asl-configuration.php --command=node_set_password --node=<node> --password=<password>`
+- `asl-configuration.php --command=node_set_statistics --node=<node> --enable=(yes|no)`
+- `asl-configuration.php --command=ami_show [--user=<user>]`
+- `asl-configuration.php --command=ami_create --newUser=<user> --secret=<secret>`
+- `asl-configuration.php --command=ami_set_secret [--user=<user>] --secret=<secret>`
+- `asl-configuration.php --command=module_enable --module=astModule --load=(yes|no)`
+
+```
+Where:
+  channel = (SimpleUSB|Radio|Pseudo|Voter|PCIx4)
+  duplex  = (0|1|2|3|4)
+```
