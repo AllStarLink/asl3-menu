@@ -8,9 +8,7 @@
 
 - New Categories are added to the end of the file.
 
-  - Found that if the last line in a file is a **comment**, an added Category incorectly starts at the end of the line, not the end of the file.
-
-	  - **??Q (Tim)??** I noticed that last line of the "rpt.conf" file did not have new-line. Could this have explained the behavior you observed?
+  - **??BUG??** Found that if the last line in a file is a **comment**, an added Category incorectly starts at the end of the line, not the end of the file.
 
 - **??BUG??** Deleting a Category removes all blank lines and comments above it.
 
