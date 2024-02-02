@@ -8,7 +8,6 @@
 # ASL3 rework/updates by WA3WCO Jan 2024
 
 AST_RESTART=0
-BACKUP_DIR="${DESTDIR}/var/asl-backups"
 CONFIG_DIR="${DESTDIR}/etc/asterisk"
 
 MSGBOX_HEIGHT=12
@@ -70,76 +69,10 @@ calc_wt_size() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_local_conf_backup() {
-    echo "do_local_conf_backup" >>$logfile
+do_backup_restore_menu() {
+    echo "do_backup_restore_menu" >>$logfile
 
-    BACKUP_NAME=$(date +ASL_%Y-%m-%d_%H%M.tgz)
-
-    whiptail										\
-	--title "$TITLE"								\
-	--yesno "Save local backup to \"$BACKUP_NAME\"?"				\
-	$MSGBOX_HEIGHT $MSGBOX_WIDTH
-    if [[ $? -eq 0 ]]; then
-        if [[ ! -d "$BACKUP_DIR" ]]; then
-            mkdir -p "$BACKUP_DIR"
-        fi
-        ( cd /										\
-	; tar czf "$BACKUP_DIR/$BACKUP_NAME" --exclude='*.tgz' etc/asterisk >/dev/null	\
-        ; chmod go+r "$BACKUP_DIR/$BACKUP_NAME"						\
-	)
-        whiptail									\
-	    --msgbox "Backup \"$BACKUP_DIR/$BACKUP_NAME\" complete."			\
-	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    fi
-}
-
-# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
-
-do_local_conf_restore() {
-    calc_wt_size
-    echo "do_local_conf_restore" >>$logfile
-
-    # build array of /etc/asterisk/*.tgz files
-    shopt -s nullglob
-    filearr=("$BACKUP_DIR"/*.tgz)
-    file_count=${#filearr[@]}
-    #echo ${#filearr[@]}
-    #echo ${filearr[@]}
-
-    # build array of backups
-    if [[ $file_count -eq 0 ]]; then
-        whiptail --msgbox "No backups available to restore." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    else
-        newarr=()
-        for i in ${!filearr[@]}; do
-            #set last file to ON (selected)
-            if [[ $((i + 1)) -eq ${#filearr[@]} ]]; then
-                ONOFF="ON"
-            else
-                ONOFF="OFF"
-            fi
-            newarr+=("${filearr[$i]}" "" "$ONOFF")
-        done
-    fi
-    #echo ${newarr[@]}; exit
-
-    # select file for restore
-    if [[ $file_count -ne 0 ]]; then
-        BACKUP_NAME=$(whiptail					\
-			--title "$TITLE"			\
-			--radiolist "Select the backup file to restore.\n\nUse the arrow keys to scroll and the space bar to select."	\
-			--ok-button "Restore"			\
-			$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
-			"${newarr[@]}"				\
-			3>&1 1>&2 2>&3)
-        if [[ $? = 0 ]]; then
-            ( cd /						\
-	    ; tar xzf "$BACKUP_NAME"				\
-	    )
-            AST_RESTART=1
-            whiptail --msgbox "The \"$BACKUP_NAME\" backup has been restored." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-        fi
-    fi
+    /usr/sbin/asl-backup-menu
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -677,7 +610,7 @@ Use arrow keys to scroll, TAB to select <Ok> and then press enter to close these
 
 Menu item "1" is where you'll configure most of the basic settings for your AllStar node. For servers with more than one node or advanced settings you'll need to use an editor/sftp client such as WinSCP.  But don't worry, everything you need to get your node on the air is here.
 
-Before changing any settings you should make a local backup with menu item "C".  If something goes wrong you'll be able to restore with menu item "R".
+Before changing any settings you should make a copy of the current configuration with the backup/restore menu, item "B".  If something goes wrong you can restore the configuration using the backup menu.
 
 Changes will go into effect once Asterisk is restarted with menu item "2".
 
@@ -708,8 +641,7 @@ do_main_menu() {
 	            "1" "AllStar Node Setup Menu"			\
 		    "2" "Restart Asterisk         $NEED_RESTART"	\
 		    "3" "Interface Tune CLI"				\
-		    "C" "Create a local backup"				\
-		    "R" "Restore a local backup"			\
+		    "B" "Backup and Restore Menu"			\
 		    "I" "Main Menu Instructions"			\
 		    3>&1 1>&2 2>&3)
         if [[ $? -ne 0 ]]; then
@@ -732,9 +664,7 @@ do_main_menu() {
 		;;
 	    3)	do_interface_tune_cli
 		;;
-	    C)	do_local_conf_backup
-		;;
-	    R)	do_local_conf_restore
+	    B)	do_backup_restore_menu
 		;;
 	    I)	do_main_menu_info
 		;;

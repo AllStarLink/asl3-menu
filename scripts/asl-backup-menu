@@ -26,7 +26,7 @@ MSGBOX_WIDTH=60
 TITLE="AllStarLink 3.0.0"
 
 #logfile=/dev/null
-logfile=/tmp/save-node.log
+logfile=/tmp/asl-backup-menu.log
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 

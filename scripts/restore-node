@@ -1,85 +1,10 @@
 #!/bin/bash
-set -o errexit
 
 # N4IRS 07/26/2017
 # mod4whip N8THN 2018
-#release date 20180323-1
-# Fixes by WA3WCO 1/10/2024
+#   release date 20180323-1
+# Fixes by WA3WCO 2/01/2024
+#   Now executes asl-backup-menu to do the work
 
-SAVESITE=http://backup.allstarlink.org
-SAVENODE_CONFIG=/etc/asterisk/savenode.conf
-SAVENODE_ARCHIVE=/tmp/astsave.tgz
-
-rm -f /tmp/availbackups.txt
-touch /tmp/availbackups.txt
-
-get_hrefs() {
-    wget -O -							\
-	--http-user="$NODE" --http-password="$PASSWORD"		\
-	backup.allstarlink.org					\
-    | grep -o '<A .*HREF=.*>'					\
-    | sed -e 's/<A /<A /g'					\
-    | sed -e 's/<A .*HREF=['"'"'"]//' -e 's/["'"'"'].*$//' -e '/^$/ d'
-}
-
-strip_getfile() {
-    declare foo=`get_hrefs 2>/dev/null`
-    echo "${foo}" | sed -e 's/getfile.cgi?//g' >> /tmp/availbackups.txt
-}
-
-# source config file, exit on error
-if [ -r $SAVENODE_CONFIG ]; then
-    .  $SAVENODE_CONFIG
-else
-    whiptail --msgbox "Sorry, the \"$SAVENODE_CONFIGthe\" file does not exist." 20 60
-    exit 1
-fi
-
-# check if configured/enabled
-if [ $ENABLE -eq 0 ]; then
-    whiptail --msgbox "The configuration file $SAVENODE_CONFIG is not configured. Please use the ASL Configuration Menu to update your node configuration." 20 60
-    exit 1
-fi
-
-do_welcome() {
-    whiptail --msgbox "Reading Asterisk node $NODE configuration backups from $SAVESITE" 20 60 2
-    strip_getfile
-}
-
-get_backups_list() {
-    # FIXME
-    # FIXME Here, we shoud use a radiolist
-    # FIXME
-    BACKUP_NAME=$(whiptail								\
-		--title "Select backup"							\
-		--inputbox "Backups available to restore:\n $(cat /tmp/availbackups.txt)\n\nPlease enter the backup file you want to restore"	\
-		30 60									\
-		3>&1 1>&2 2>&3)
-
-    whiptail										\
-	--msgbox "Saving \"$BACKUP_NAME\" from \"$SAVESITE\" to \"$SAVENODE_ARCHIVE\""	\
-	20 60 2
-
-    wget -q -t 1 -T 60								\
-	--http-user="$NODE" --http-password="$PASSWORD"				\
-	-O $SAVENODE_ARCHIVE							\
-	"http://backup.allstarlink.org/getfile.cgi?$BACKUP_NAME"
-}
-
-do_restore_now() {
-    whiptail									\
-	--title "Restore now"							\
-	--yesno "Ready to restore the node configuration you just downloaded?"	\
-	8 78
-    if [ $? -eq 0 ]; then
-	( cd / ; tar xzf /tmp/astsave.tgz )
-	whiptail --msgbox "Configuration restored, ASL restart required" 20 60 2
-    else
-	whiptail --msgbox "Not restoring configuration now\nUse \"tar xzf $BACKUP_NAME\"\nat your convenience" 20 60 2
-    fi
-}
-
-do_welcome
-get_backups_list
-do_restore_now
+/usr/sbin/asl-backup-menu restore-asl
 
