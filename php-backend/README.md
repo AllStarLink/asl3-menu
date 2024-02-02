@@ -20,8 +20,8 @@ Usage: asl-configuration.php --help
 Valid ASL commands:
   node_list, node_show, node_create, node_create_full, node_delete
   node_rename, node_set_callsign, node_set_channel, node_set_duplex
-  node_set_password, node_set_statistics, ami_show, ami_set_secret
-  module_enable
+  node_set_password, node_set_statistics, ami_show, ami_create
+  ami_set_secret, module_enable
 ```
 
 #### The "--host=\<host>" argument and "settings.ini" file :
@@ -54,10 +54,13 @@ NOTE: THIS FUNCTIONALITY HAS NOT BEEN TESTED!!!
 
 The `--debug` argument (not mentioned in the "usage") can help with debugging the backend code.
 
-* the AMI string is output
-* if `$live_dangerously = true;` is set (in "asl-ami-commands.php") then :
-	* any configuration changes will be written to files with a "-DEBUG" extension.
-	* a `diff` command is executed showing the difference between the origina and updated files.
+* the string passed to AMI is reported
+* any changes are written to a configuration file with a "-DEBUG" suffix
+
+Note: writing to this alternate file REQUIRES one of the following conditions :
+
+1. the "-DEBUG" file must already exist
+2. the "live_dangerously" setting must be enabled in the "/etc/asterisk/asterisk.conf" file
 
 Using `--debug=2` will provide even more verbose output.
 
@@ -80,19 +83,21 @@ Note: so far, this does not appear to be an issue :-)
 
 - `asl-configuration.php --command=node_list`
 - `asl-configuration.php --command=node_show --node=<node>`
-- `asl-configuration.php --command=node_create --newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]`
-- `asl-configuration.php --command=node_create_full --newNode=<node> --rxChannel=<channel> --duplex=<duplex> --callsign=<callsign> [--iaxIP=<ip>] [--iaxPort=<port>]`
+- `asl-configuration.php --command=node_create --newNode=<node> --password=<password> [--iaxIP=<ip>] [--iaxPort=<port>]`
+- `asl-configuration.php --command=node_create_full --newNode=<node> --password=<password> --rxChannel=<channel> --duplex=<duplex> --callsign=<callsign> [--iaxIP=<ip>] [--iaxPort=<port>]`
 - `asl-configuration.php --command=node_delete --node=<node>`
-- `asl-configuration.php --command=node_rename --node=<node> --newNode=<node> [--iaxIP=<ip>] [--iaxPort=<port>]`
+- `asl-configuration.php --command=node_rename --node=<node> --newNode=<node>`
 - `asl-configuration.php --command=node_set_callsign --node=<node> --callsign=<callsign>`
 - `asl-configuration.php --command=node_set_channel --node=<node> --rxChannel=<channel>`
-- `asl-configuration.php --command=node_set_duplex --node=<node> --duplex=<duplex>`
-- `asl-configuration.php --command=node_set_statpost --node=<node> --enable=(yes|no)`
+- `asl-configuration.php --command=node_set_password --node=<node> --password=<password>`
+- `asl-configuration.php --command=node_set_statistics --node=<node> --enable=(yes|no)`
+- `asl-configuration.php --command=ami_show [--user=<user>]`
+- `asl-configuration.php --command=ami_create --newUser=<user> --secret=<secret>`
 - `asl-configuration.php --command=ami_set_secret [--user=<user>] --secret=<secret>`
 - `asl-configuration.php --command=module_enable --module=astModule --load=(yes|no)`
 
 ```
-channel = (SimpleUSB|Radio|Pseudo|Voter|PCIx4)
-duplex  = (0|1|2|3|4)
+Where:
+  channel = (SimpleUSB|Radio|Pseudo|Voter|PCIx4)
+  duplex  = (0|1|2|3|4)
 ```
-

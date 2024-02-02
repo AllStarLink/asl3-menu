@@ -19,6 +19,7 @@ fi
 
 for f in				\
 	extensions.conf			\
+	iax.conf			\
 	manager.conf			\
 	rpt.conf			\
 	rpt_http_registrations.conf	\

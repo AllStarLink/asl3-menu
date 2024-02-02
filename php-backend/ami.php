@@ -23,6 +23,9 @@
 
 //error_reporting(0);
 
+// Q? can we write our "-DEBUG" files?
+$live_dangerously = null;	// true/false or null if we haven't checked
+
 // DEBUG
 $ami_debug = 0;
 function AMI_debug($level = 1)	{ global $ami_debug; return ($ami_debug >= $level);   }
@@ -51,10 +54,10 @@ function AMIresponse($fp, $actionID) {
 // connect to the AMI host
 function AMIconnect($host) {
     // Set default port if not provided
-    $arr = explode(":", $host);
-    $ip = $arr[0];
-    if (isset($arr[1])) {
-	$port = $arr[1];
+    $ip_port = explode(":", $host);
+    $ip = $ip_port[0];
+    if (isset($ip_port[1])) {
+	$port = $ip_port[1];
     } else {
 	$port = 5038;
     }
@@ -97,6 +100,48 @@ function AMIlogin($fp, $user, $password) {
     }
 
     return TRUE;
+}
+
+// check AMI to see if we can write temp (DEBUG) config files
+function AMIDebugWriteOK($fp, $host, $file) {
+    global $live_dangerously;
+
+    $ip_port = explode(":", $host);
+    $ip = $ip_port[0];
+    if ($ip != "127.0.0.1") {
+	// if not "localhost"
+	return FALSE;
+    }
+
+    $path = "/etc/asterisk/" . $file . "-DEBUG";
+    if (file_exists($path)) {
+	// if the target "-DEBUG" file exists, we're good
+	return TRUE;
+    }
+
+    if (is_null($live_dangerously)) {
+	$live_dangerously = false;
+
+	//
+	// using AMI "GetConfig" to look for "live_dangerously = yes" in
+	// the "asterisk.conf" file
+	//
+	$response = AMIRead($fp,
+			    'GetConfig',
+			    "asterisk.conf",
+			    "Category: options\r\n");
+	$lines = preg_split('/\r\n|\n|\r/', $response);
+	$matches = preg_grep("/^Line-[0-9-]+: live_dangerously=.+/", $lines);
+	if ($matches) {
+	    // check the LAST match
+	    $last = trim($matches[array_key_last($matches)]);
+	    if (preg_match("/^Line-[0-9-]+: live_dangerously=yes$/", $last) === 1) {
+		$live_dangerously = true;
+	    }
+	}
+    }
+
+    return $live_dangerously;
 }
 
 // send AMI "read" command

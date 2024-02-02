@@ -8,8 +8,6 @@
 set_include_path("/usr/lib/asterisk/php-support");
 include("ami.php");
 
-$live_dangerously = false;
-
 //error_reporting(0);
 
 //
@@ -405,13 +403,38 @@ $aslCommands = array(
 	),
 
 	'ami_show' =>  array(
-		'args'    => array(),
-		'help'    => "",
+		'args'    => array("user"),
+		'help'    => "[--user=<user>]",
 		'actions' => array(
 			0 => array(
 				'action' => "GetConfig",
 				'file'   => "manager.conf",
-				'string' => "Category: admin\r\n"
+				'string' => "Category: M-user\r\n"
+			),
+		),
+	),
+
+	'ami_create' =>  array(
+		'args'    => array("newUser", "secret"),
+		'help'    => "--newUser=<user> --secret=<secret>",
+		'actions' => array(
+			0 => array(
+				'action' => "UpdateConfig",
+				'file'   => "manager.conf",
+				'string' => "Action-000000: NewCat\r\n"
+							 . "Cat-000000: M-newUser\r\n"
+					  . "Action-000001: Append\r\n"
+							 . "Cat-000001: M-newUser\r\n"
+							 . "Var-000001: secret\r\n"
+							 . "Value-000001: M-secret\r\n"
+					  . "Action-000002: Append\r\n"
+							 . "Cat-000002: M-newUser\r\n"
+							 . "Var-000002: read\r\n"
+							 . "Value-000002: all,system,call,log,verbose,command,agent,user,config\r\n"
+					  . "Action-000003: Append\r\n"
+							 . "Cat-000003: M-newUser\r\n"
+							 . "Var-000003: write\r\n"
+							 . "Value-000003: all,system,call,log,verbose,command,agent,user,config\r\n",
 			),
 		),
 	),
@@ -500,6 +523,7 @@ $aslLongOptions  = array(
     "load:",		// --load=(true|false|yes|no|1|0)
     "module:",		// --module=<string>
     "newNode:",		// --newNode=int
+    "newUser:",		// --newUser=<string>
     "node:",		// --node=int
     "password:",	// --password=<password>	(e.g. "your-node-password")
     "rxChannel:",	// --rxChannel=(SimpleUSB|Radio|Pseudo|Voter|PCIx4)
@@ -570,7 +594,7 @@ function getTargetAMIHostInfo($targetHost) {
     	if (file_exists($iniPath)) {
 	    // read and parse the file
 	    $config = parse_ini_file($iniPath, true);
-	    if ($config === null) {
+	    if (is_null($config)) {
 		throw new Exception("Error parsing \"$iniPath\"");
 	    }
 
@@ -611,7 +635,6 @@ function getTargetAMIHostInfo($targetHost) {
 
 function ASLCommandExecute($options) {
     global $aslCommands;
-    global $live_dangerously;
 
     // first, we validate the options
     try {
@@ -665,10 +688,10 @@ function ASLCommandExecute($options) {
 
     $x_values = array();
 
+    $updated = false;
+
     // iterate over the actions
     foreach ($actions as $key => $action) {
-	$updated = false;
-
 	// for actions with an 'enable' key, process conditionally
 	if (array_key_exists('enable', $action)) {
 	    $enableKey = $action['enable'];
@@ -719,7 +742,7 @@ function ASLCommandExecute($options) {
 	    // we are updating a new file
 	    $srcOrig = $srcFile;
 	    $dstFile = $srcFile;
-	    if ($live_dangerously && ASL_debug()) {
+	    if (ASL_debug()) {
 		$dstFile .= "-DEBUG";
 	    }
 	} else {
@@ -740,6 +763,20 @@ function ASLCommandExecute($options) {
 				    $amiAction,
 				    $srcFile,
 				    $cmdString);
+		switch ($command) {
+		    case "ami_show" :
+			if (trim($response) == "No categories found") {
+			    $user = $validOptions['user'];
+			    throw new Exception("No user \"$user\"");
+			}
+			break;
+		    case "node_show" :
+			if (trim($response) == "No categories found") {
+			    $node = $validOptions['node'];
+			    throw new Exception("No node \"$node\"");
+			}
+			break;
+		}
 
 		// split the response
 		$lines = preg_split('/\r\n|\n|\r/', $response);
@@ -869,6 +906,17 @@ function ASLCommandExecute($options) {
 		break;
 
 	    case "UpdateConfig" :
+		if (ASL_debug()) {
+		    //
+		    // if we are debugging, ensure that we can use AMI to
+		    // write our changes (the "-DEBUG" file must exist or
+		    // asterisk's "live_dangerously=yes" must be enabled.
+		    //
+		    if (!AMIDebugWriteOK($fp, $targetHostInfo['host'], $srcOrig)) {
+			throw new Exception("DEBUG requested but cannot write temp config ($srcOrig)");
+		    }
+		}
+
 		try {
 		    $response = AMIUpdate($fp,
 					  $amiAction,
@@ -886,22 +934,20 @@ function ASLCommandExecute($options) {
 		break;
 	}
 
-	if ($srcOrig != $dstFile) {
-	    if ($live_dangerously && $updated && file_exists("/etc/asterisk/" . $dstFile)) {
-		// if we made changes
-		$srcLast = $dstFile;
-		$dstLast = $dstFile;
+	if ($updated && ($srcOrig != $dstFile)) {
+	    // if we made changes
+	    $srcLast = $dstFile;
+	    $dstLast = $dstFile;
 
-		// show the diffs
-		if (ASL_debug()) {
-		    $cmd = "diff -w -c /etc/asterisk/$srcOrig /etc/asterisk/$dstFile";
-		    print "$cmd\n";
-		    system($cmd);
-		}
-	    } else {
-		$srcLast = $srcOrig;
-		$dstLast = $dstFile;
+	    // show the diffs
+	    if (ASL_debug() && file_exists("/etc/asterisk/" . $dstFile)) {
+		$cmd = "diff -w -c /etc/asterisk/$srcOrig /etc/asterisk/$dstFile";
+		print "$cmd\n";
+		system($cmd);
 	    }
+	} else {
+	    $srcLast = $srcOrig;
+	    $dstLast = $dstFile;
 	}
 
     }
@@ -1079,7 +1125,7 @@ function ASLCommandValidate($options) {
 		break;
 	    case "load" :
 		$valid = validateBool($value);
-		if ($valid === NULL) {
+		if (is_null($valid)) {
 		    // if not bool value, look for "load|noload"
 		    $valid = validateString($value, "/^(load|noload)$/");
 		} else {
@@ -1095,7 +1141,7 @@ function ASLCommandValidate($options) {
 		break;
 	    case "password" :
 		$valid = validateString($value, "/^[0-9a-zA-Z]{6,15}$/");
-		if ($valid === NULL) {
+		if (is_null($valid)) {
 		    throw new Exception("The node password may only contain letters and numbers. The\n" .
 					"password must be between 6 and 15 characters in length");
 		}
@@ -1117,12 +1163,13 @@ function ASLCommandValidate($options) {
 		break;
 	    case "secret" :
 		$valid = validateString($value, "/^[0-9a-zA-Z_-]{12,}$/");
-		if ($valid === NULL) {
+		if (is_null($valid)) {
 		    throw new Exception("The AMI secret may only contain letters, numbers, underscore and dash. The\n" .
 					"secret must be 12 or more characters in length");
 		}
 		break;
 	    case "user" :
+	    case "newUser" :
 		// for now, no validate
 		$valid = $value;
 		break;
@@ -1130,7 +1177,7 @@ function ASLCommandValidate($options) {
 		die("Validation for \"$requiredArg\" missing\n");
 		break;
 	}
-	if ($valid === NULL) {
+	if (is_null($valid)) {
 	    throw new Exception("Error: \"$value\" is not a valid value for \"$requiredArg\"");
 	}
 
