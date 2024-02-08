@@ -226,7 +226,6 @@ do_restore_local() {
 
     echo "Restoring configuration, please wait..."
     RC=0
-echo	\
     tar					\
 	--extract			\
 	--gzip				\
@@ -308,7 +307,7 @@ do_restore_asl() {
     ASL_ARCHIVE="$1"
 
     BACKUP_NAME=$(echo $ASL_ARCHIVE |	\
-		  sed -E 's/^([0-9][0-9][0-9][0-9])([0-9][0-9])([0-9][0-9])([0-9][0-9][0-9][0-9][0-9][0-9]).tgz$/ASL_\1-\2-\3_\4.asl/')
+		  sed -E 's/^([0-9][0-9][0-9][0-9])([0-9][0-9])([0-9][0-9])([0-9][0-9][0-9][0-9][0-9][0-9]).tgz$/ASL_\1-\2-\3_\4.tgz/')
     BACKUP_ARCHIVE="$BACKUP_DIR/$BACKUP_NAME"
 
     echo "Copying archive \"$ASL_ARCHIVE\" from \"${SAVEHOST}\", please wait..."
