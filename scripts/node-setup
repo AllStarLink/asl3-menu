@@ -5,10 +5,10 @@
 # VERSION 1.90
 # release date 20180323-1
 # Major rework by WD6AWP April 2021
-# ASL3 rework/updates by WA3WCO Jan 2024
+# ASL3 rework/updates by WA3WCO Jan/Feb 2024
 
 AST_RESTART=0
-CONFIG_DIR="${DESTDIR}/etc/asterisk"
+CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
 
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
@@ -48,12 +48,12 @@ calc_wt_size() {
     #   The number of lines are $LINES
 
     if [[ $LINES -lt 22 ]]; then
-        echo "Terminal size must be at least 22 lines."
-        exit 1
+	echo "Terminal size must be at least 22 lines."
+	exit 1
     fi
     if [[ $COLUMNS -lt 60 ]]; then
-        echo "Terminal size must be at least 60 columns."
-        exit 1
+	echo "Terminal size must be at least 60 columns."
+	exit 1
     fi
 
     WT_HEIGHT=22
@@ -61,10 +61,74 @@ calc_wt_size() {
     # Leave full width up to 100 columns
     WT_WIDTH=$COLUMNS
     if [[ $COLUMNS -gt 100 ]]; then
-        WT_WIDTH=100
+	WT_WIDTH=100
     fi
 
     WT_MENU_HEIGHT=$(($WT_HEIGHT - 8))
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+TEMPLATE_EDIT_START() {
+    F="${1}"	# file
+
+    #
+    # Extracting (and editing) a node (e.g. "[1234]") in a templated
+    # configuration file is tricky when no node/category follows.  To
+    # address this we temporarily add a [category] at end of the file.
+    #
+    sed -i -e "/^\[asl-menu]/d"		"${F}"
+    echo "[asl-menu]"			>> "${F}"
+}
+
+TEMPLATE_EDIT_END() {
+    F="${1}"	# file
+
+    #
+    # Remove our temporary [category]
+    #
+    sed -i -e "/^\[asl-menu]/d"		"${F}"
+}
+
+TEMPLATE_CATEGORY_ADD() {
+    C="${1}"	# category
+    T="${2}"	# template
+    F="${3}"	# file
+
+    # check if the [category] already exists
+    grep -q "^\[${C}]"			"${F}"
+    if [[ $? -eq 0 ]]; then
+	return
+    fi
+
+    if [ -n "${T}" ]; then
+	T="(${T})"
+    fi
+
+    #
+    # add the [category]
+    #
+    # ... and add the per-node category
+    sed -i -e "/^\[asl-menu]/i\\
+[${C}]${T}\\
+"					"${F}"
+}
+
+TEMPLATE_CATEGORY_REMOVE() {
+    C="${1}"	# category
+    F="${2}"	# file
+
+    #
+    # remove the [category]
+    #
+    AWK_TMP=$(mktemp)
+    cp "${F}" $AWK_TMP
+    awk "BEGIN { p=1; }
+	 /^\[${C}]/ { p=0; next; }
+	 /^\[/      { p=1; }
+	 p==1       { print; }
+	"				$AWK_TMP > "${F}"
+    rm $AWK_TMP
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -77,29 +141,57 @@ do_backup_restore_menu() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_select_statpost() {
-    echo "doing do_rpt_statpost" >>$logfile
+do_update_node_callsign() {
+    echo "doing do_update_node_callsign" >>$logfile
 
-    # un/comments the statpost command in rpt.conf
-    whiptail								\
-	--title "$TITLE"						\
-	--yesno "Enabling status posting to AllStarLink.org?"		\
-	$MSGBOX_HEIGHT $MSGBOX_WIDTH
-    case $? in
-	0) sed -i "/^;\s*statpost_url\s*=/ s/;\s*statpost_url/statpost_url/"	$CONFIG_DIR/rpt.conf
-	   ;;
-	1) sed -i "/^statpost_url\s*=/ s/statpost_url/;statpost_url/"		$CONFIG_DIR/rpt.conf
-	   ;;
-	*) return
-	   ;;
-    esac
+    ANSWER=$(whiptail							\
+		--title "$TITLE"					\
+		--inputbox "Enter the call sign for node $NEW_NODE :"	\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH				\
+		"$CURRENT_CALLSIGN"					\
+		3>&1 1>&2 2>&3)
+    if [[ $? -ne 0 ]]; then
+	return
+    fi
+
+    re=^[0-9A-Z]{3,}$
+    if ! [[ $ANSWER =~ $re ]]; then
+	whiptail	\
+	    --msgbox "A call sign may only uppercase letters and numbers. The call must be 3 or more characters in length."	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    elif [[ $ANSWER != $CURRENT_CALLSIGN ]]; then
+	NEW_CALLSIGN=$ANSWER
+	do_node_set_callsign
+    fi
+}
+
+do_node_set_callsign() {
+    echo "doing do_node_set_callsign" >>$logfile
+
+    # Update callsign (for "ID")
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
+	#
+	# if present, remove any existing "idrecording" and "idtalkover" settings
+	# for this node and then add settings with the requested callsign
+	#
+	sed	-i							\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^idrecording\s*=/d; }"	\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^idtalkover\s*=/d;  }"	\
+		-e "/^\[$CURRENT_NODE]/a\\
+idrecording = |i${NEW_CALLSIGN}/R\\
+idtalkover  = |i${NEW_CALLSIGN}
+"									$CONFIG_DIR/rpt.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
     update_file_permissions $CONFIG_DIR/rpt.conf
+
+    AST_RESTART=1
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_select_duplex() {
+do_update_node_duplex() {
     echo "doing do_new_duplex" >>$logfile
 
     # Array of duplex choices
@@ -113,24 +205,24 @@ do_select_duplex() {
 
     newarr=()
     for i in ${!duplex_modes[@]}; do
-        if [[ $i -eq $CURRENT_DUPLEX ]]; then
-            ONOFF="ON"
-        else
-            ONOFF="OFF"
-        fi
-        newarr+=("$i" "${duplex_modes[$i]}" "$ONOFF")
+	if [[ $i -eq $CURRENT_DUPLEX ]]; then
+	    ONOFF="ON"
+	else
+	    ONOFF="OFF"
+	fi
+	newarr+=("$i" "${duplex_modes[$i]}" "$ONOFF")
     done
     ((i++))
 
-    ANSWER=$(whiptail								\
-		--title "$TITLE"						\
+    ANSWER=$(whiptail							\
+		--title "$TITLE"					\
 		--radiolist "Select the duplex type.\n\nUse the arrow keys to scroll and the space bar to select."	\
-		$WT_HEIGHT $WT_WIDTH						\
-		$i								\
-		"${newarr[@]}"							\
+		$WT_HEIGHT $WT_WIDTH					\
+		$i							\
+		"${newarr[@]}"						\
 		3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
-        return
+	return
     fi
 
     re=^[0-4]$
@@ -143,9 +235,20 @@ do_select_duplex() {
 }
 
 do_set_duplex() {
-    echo "doing do_rpt_duplex" >>$logfile
+    echo "doing do_set_duplex" >>$logfile
 
-    sed -i "/^duplex\s*=\s*/s/$CURRENT_DUPLEX/$NEW_DUPLEX/"	$CONFIG_DIR/rpt.conf
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
+	#
+	# if present, remove "duplex" for this node
+	# ... and add new "duplex" for this node
+	#
+	sed	-i							\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^duplex\s*=/d; }"	\
+		-e "/^\[$CURRENT_NODE]/a\\
+duplex = $NEW_DUPLEX
+"									$CONFIG_DIR/rpt.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
+
     update_file_permissions $CONFIG_DIR/rpt.conf
 
     AST_RESTART=1
@@ -153,15 +256,17 @@ do_set_duplex() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_select_node_number() {
-    ANSWER=$(whiptail								\
-		--title "$TITLE"						\
+do_update_node_number() {
+    echo "doing do_update_node_number" >>$logfile
+
+    ANSWER=$(whiptail							\
+		--title "$TITLE"					\
 		--inputbox "The current node number is $CURRENT_NODE.\n\nEnter new node number :"	\
-		$MSGBOX_HEIGHT $MSGBOX_WIDTH					\
-		"$CURRENT_NODE"							\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH				\
+		"$CURRENT_NODE"						\
 		3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
-        return
+	return
     fi
 
     re=^[0-9]\+$
@@ -169,45 +274,46 @@ do_select_node_number() {
 	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     elif [[ $ANSWER != $CURRENT_NODE ]]; then
 	NEW_NODE=$ANSWER
-	do_set_node_number
+	do_node_rename
+	CURRENT_NODE=$NEW_NODE
     fi
 }
 
-do_set_node_number() {
-    echo "doing do_set_node_number" >>$logfile
+do_node_rename() {
+    echo "doing do_node_rename" >>$logfile
 
     # Update appropriate rpt.conf lines
-    sed -i "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/rpt.conf
-    sed -i "/^$CURRENT_NODE\s*=\s*/ s/$CURRENT_NODE/$NEW_NODE/g"			$CONFIG_DIR/rpt.conf
-    sed -i "/^rxchannel\s*=.*usb_$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt.conf
-    sed -i "/^;\s*rxchannel\s*=.*usb_$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt.conf
-    sed -i "/^rxchannel\s*=\s*Voter\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt.conf
-    sed -i "/^;\s*rxchannel\s*=\s*Voter\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt.conf
+    sed -i										\
+	-e "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				\
+	-e "/^$CURRENT_NODE\s*=\s*/ s/$CURRENT_NODE/$NEW_NODE/g"			\
+	-e "/^rxchannel\s*=\s*SimpleUSB\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	\
+	-e "/^rxchannel\s*=\s*Radio\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	\
+	-e "/^rxchannel\s*=\s*Voter\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt.conf
 
     # Update appropriate extensions.conf lines
-    sed -i "/^NODE\s*=\s*[0-9]\+/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/extensions.conf
+    sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/extensions.conf
 
     # Update node registration
     #
     # Note:
     # * The template node has a node # of "1234" and not "1999". Fix this first :-)
-    # * New nodes will have the register statement commented. Remove it first then change node number.
+    # * Then, change node number.
     #
-    sed -i "/register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"		$CONFIG_DIR/rpt_http_registrations.conf
-    sed -i "/^;.*register\s*=>\s*${CURRENT_NODE}:/ s/;\s*//"			$CONFIG_DIR/rpt_http_registrations.conf
-    sed -i "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt_http_registrations.conf
+    sed -i										\
+	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"			\
+	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
 
     # Update "save-node" configuration
-    sed -i "/^NODE\s*=/ s/NODE\s*=.*/NODE=$NEW_NODE/"				$CONFIG_DIR/savenode.conf
+    sed -i -e "/^NODE\s*=/ s/NODE\s*=.*/NODE=$NEW_NODE/"				$CONFIG_DIR/savenode.conf
 
     # Update "simpleusb" configuration
-    sed -i "/^\[usb_$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/simpleusb.conf
+    sed -i -e "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/simpleusb.conf
 
     # Update "usbradio" configuration
-    sed -i "/^\[usb_$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/usbradio.conf
+    sed -i -e "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/usbradio.conf
 
     # Update "voter" configuration
-    sed -i "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/voter.conf
+    sed -i -e "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/voter.conf
 
     update_file_permissions			\
 	$CONFIG_DIR/rpt.conf			\
@@ -223,13 +329,15 @@ do_set_node_number() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_select_node_password() {
+do_update_node_password() {
+    echo "doing do_update_node_password" >>$logfile
+
     if [[ "$CURRENT_PASSWD" == "Not Set" ]]; then
-        whiptail											\
+	whiptail											\
 	    --title "$TITLE"										\
 	    --msgbox "This looks like a new node. Change node number before setting the password."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-        return
+	return
     fi
 
     ANSWER=$(whiptail											\
@@ -239,7 +347,7 @@ do_select_node_password() {
 		"$CURRENT_PASSWD"									\
 		3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
-        return
+	return
     fi
 
     re=^[0-9a-zA-Z_-]{6,}$
@@ -249,23 +357,26 @@ do_select_node_password() {
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     elif [[ "$ANSWER" != "$CURRENT_PASSWD" ]]; then
 	NEW_PASSWD=$ANSWER
-	do_set_node_password
+	do_node_set_password
     fi
 }
 
-do_set_node_password() {
+do_node_set_password() {
+    echo "doing do_node_set_password" >>$logfile
+
     # Update node registration
     #
     # Note:
     # * The template node has a node # of "1234" and not "1999". Fix this first :-)
     # * New nodes will have the register statement commented. Remove it first then change node password.
     #
-    sed -i "/register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"		$CONFIG_DIR/rpt_http_registrations.conf
-    sed -i "/^;.*register\s*=>\s*${CURRENT_NODE}:/ s/;\s*//"			$CONFIG_DIR/rpt_http_registrations.conf
-    sed -i "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_PASSWD/$NEW_PASSWD/"	$CONFIG_DIR/rpt_http_registrations.conf
+
+    sed -i									\
+	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"		\
+	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_PASSWD/$NEW_PASSWD/"	$CONFIG_DIR/rpt_http_registrations.conf
 
     # Update "save-node" configuration
-    sed -i "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWD/"		$CONFIG_DIR/savenode.conf
+    sed -i -e "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWD/"		$CONFIG_DIR/savenode.conf
 
     update_file_permissions $CONFIG_DIR/rpt_http_registrations.conf $CONFIG_DIR/savenode.conf
 
@@ -274,32 +385,42 @@ do_set_node_password() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_select_node_callsign() {
-    ANSWER=$(whiptail							\
-		--title "$TITLE"					\
-		--inputbox "Enter the call sign for node $NEW_NODE :"	\
-		$MSGBOX_HEIGHT $MSGBOX_WIDTH				\
-		"$CURRENT_CALLSIGN"					\
-		3>&1 1>&2 2>&3)
-    if [[ $? -ne 0 ]]; then
-        return
-    fi
+do_update_node_statpost() {
+    echo "doing do_update_node_statpost" >>$logfile
 
-    re=^[0-9A-Z]{3,}$
-    if ! [[ $ANSWER =~ $re ]]; then
-	whiptail	\
-	    --msgbox "A call sign may only uppercase letters and numbers. The call must be 3 or more characters in length."	\
-	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    elif [[ $ANSWER != $CURRENT_CALLSIGN ]]; then
-	NEW_CALLSIGN=$ANSWER
-	do_set_node_callsign
-    fi
+    # un/comments the statpost command in rpt.conf
+    whiptail								\
+	--title "$TITLE"						\
+	--yesno "Enabling status posting to AllStarLink.org?"		\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    case $? in
+	0) NEW_STATPOST="Yes"
+	   ;;
+	1) NEW_STATPOST="No"
+	   ;;
+	*) return
+	   ;;
+    esac
+
+    do_set_statpost
 }
 
-do_set_node_callsign() {
-    # Update callsign (for "ID")
-    sed -i "/^idrecording\s*=\s*|i$CURRENT_CALLSIGN/ s/$CURRENT_CALLSIGN/$NEW_CALLSIGN/"	$CONFIG_DIR/rpt.conf
-    sed -i "/^idtalkover\s*=\s*|i$CURRENT_CALLSIGN/ s/$CURRENT_CALLSIGN/$NEW_CALLSIGN/"		$CONFIG_DIR/rpt.conf
+do_set_statpost() {
+    echo "doing do_set_statpost" >>$logfile
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
+	#
+	# if present, remove "statpost" for this node
+	#
+	sed -i -e "/^\[$CURRENT_NODE]/,/^\[/ { /^statpost_url\s*=/d; }"	$CONFIG_DIR/rpt.conf
+
+	if [ $NEW_STATPOST = "Yes" ]; then
+	    # if enabled, add "statpost" for this node
+	    sed -i -e "/^\[$CURRENT_NODE]/a\\
+statpost_url = http:\/\/stats.allstarlink.org\/uhandler
+"									$CONFIG_DIR/rpt.conf
+	fi
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
     update_file_permissions $CONFIG_DIR/rpt.conf
 
@@ -308,8 +429,10 @@ do_set_node_callsign() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_select_ami_secret() {
-    echo "doing do_select_ami_secret" >>$logfile
+do_update_ami_secret() {
+    echo "doing do_update_ami_secret" >>$logfile
+
+    get_ami_settings
 
     ANSWER=$(whiptail								\
 		--title "$TITLE"						\
@@ -318,12 +441,12 @@ do_select_ami_secret() {
 		"$CURRENT_AMI_SECRET"						\
 		3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
-        return
+	return
     fi
 
     re=^[0-9a-zA-Z_-]{12,}$
     if ! [[ $ANSWER =~ $re ]]; then
-	whiptail						\
+	whiptail								\
 	    --msgbox "The AMI secret may only contain letters, numbers, underscore and dash. It must be 12 or more characters in length."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     elif [[ $ANSWER != $CURRENT_AMI_SECRET ]]; then
@@ -333,7 +456,9 @@ do_select_ami_secret() {
 }
 
 do_set_ami_secret() {
-    sed -i "/^secret\s*=\s*$CURRENT_AMI_SECRET/ s/$CURRENT_AMI_SECRET/$NEW_AMI_SECRET/"	$CONFIG_DIR/manager.conf
+    echo "doing do_set_ami_secret" >>$logfile
+
+    sed -i -e "/^secret\s*=\s*$CURRENT_AMI_SECRET/ s/$CURRENT_AMI_SECRET/$NEW_AMI_SECRET/"	$CONFIG_DIR/manager.conf
 
     update_file_permissions $CONFIG_DIR/manager.conf
 
@@ -342,7 +467,7 @@ do_set_ami_secret() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_select_interface() {
+do_update_node_interface() {
     echo "doing do_interface_type" >>$logfile
 
     ## interface menu
@@ -351,118 +476,162 @@ do_select_interface() {
 		--menu "Select Radio Interface"					\
 		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT				\
 		--ok-button "Select"						\
-		--cancel-button "Back to Node Setup"				\
-	        "1" "SimpleUSB    : CM1xx USB Cards no/DSP (URIx or RA-40)"	\
-	        "2" "USBRadio     : CM1xx USB Cards with DSP (URIx or RA-40)"	\
-	        "3" "RTCM         : Radio Thin Client or Voter Boards"		\
-	        "4" "Dahdi/pseudo : No radio interface or HUB node"		\
-	        "5" "PCI Quad Radio Card"					\
-	        "6" "USRP"							\
-	        3>&1 1>&2 2>&3)
+		--cancel-button "Back"						\
+		"1" "SimpleUSB    : CM1xx USB Cards no/DSP (URIx or RA-40)"	\
+		"2" "USBRadio     : CM1xx USB Cards with DSP (URIx or RA-40)"	\
+		"3" "RTCM         : Radio Thin Client or Voter Boards"		\
+		"4" "Dahdi/pseudo : No radio interface or HUB node"		\
+		"5" "PCI Quad Radio Card"					\
+		"6" "USRP"							\
+		3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
-        return
+	return
     fi
 
     case "$ANSWER" in
-        1) do_set_simpleusb	;;
-        2) do_set_usbradio	;;
-        3) do_set_voter		;;
-        4) do_set_pseudo	;;
-        5) do_set_quadradio	;;
-        6) do_set_usrp		;;
-        *) whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH 1 ;;
+	1) do_node_set_simpleusb	;;
+	2) do_node_set_usbradio		;;
+	3) do_node_set_voter		;;
+	4) do_node_set_pseudo		;;
+	5) do_node_set_quadradio	;;
+	6) do_node_set_usrp		;;
+	*) whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH 1 ;;
     esac
 }
 
 do_noload_chan_modules() {
-    # Set common app_rpt channel modules to noload
-    sed -i "/^load\s*=>\s*chan_simpleusb/ s/load/noload/"	$CONFIG_DIR/modules.conf
-    sed -i "/^load\s*=>\s*chan_usbradio/  s/load/noload/"	$CONFIG_DIR/modules.conf
-    sed -i "/^load\s*=>\s*chan_usrp/      s/load/noload/"	$CONFIG_DIR/modules.conf
-    sed -i "/^load\s*=>\s*chan_voter/     s/load/noload/"	$CONFIG_DIR/modules.conf
-    sed -i "/^load\s*=>\s*chan_pi/        s/load/noload/"	$CONFIG_DIR/modules.conf
-
-    # Comment all rxchannels
-    sed -i "s/^rxchannel/; rxchannel/g"				$CONFIG_DIR/rpt.conf
+    # set common [app_rpt] channel modules to noload
+    sed -i									\
+	-e "/^load\s*=>\s*chan_simpleusb/ s/load/noload/"			\
+	-e "/^load\s*=>\s*chan_usbradio/  s/load/noload/"			\
+	-e "/^load\s*=>\s*chan_usrp/      s/load/noload/"			\
+	-e "/^load\s*=>\s*chan_voter/     s/load/noload/"			\
+	-e "/^load\s*=>\s*chan_pi/        s/load/noload/"			$CONFIG_DIR/modules.conf
 }
 
-do_set_simpleusb() {
-    echo "doing do_set_simpleusb" >>$logfile
+do_load_chan_module() {
+    # load specific [app_rpt] channel module
+    MODULE="chan_$1"
 
+    sed -i -e "/^noload.\+${MODULE}/ s/noload/load/"				$CONFIG_DIR/modules.conf
+}
+
+do_set_rxchannel() {
+    # set a nodes rxchannel
+    RXCHANNEL="$1"
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
+	#
+	# if present, remove "rxchannel" for this node
+	# ... and add new "rxchannel" for this node
+	#
+	sed	-i								\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxchannel\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/a\\
+rxchannel = $RXCHANNEL
+"										$CONFIG_DIR/rpt.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
+}
+
+do_node_set_simpleusb() {
+    echo "doing do_node_set_simpleusb" >>$logfile
+
+    # Load module
     do_noload_chan_modules
+    do_load_chan_module "simpleusb"
 
-    # Load module and set rxchannel
-    sed -i "/^noload.\+chan_simpleusb/ s/noload/load/"				$CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*SimpleUSB/ s/^;\s*rxchannel/rxchannel/"	$CONFIG_DIR/rpt.conf
+    # Set [node] rxchannel
+    do_set_rxchannel "SimpleUSB/${CURRENT_NODE}"
 
-    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+    # Add the [node] to the SimpleUSB configuration 
+    TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
+	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/simpleusb.conf
+    TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/simpleusb.conf
 
     AST_RESTART=1
 }
 
-do_set_usbradio() {
-    echo "doing do_set_usbradio" >>$logfile
+do_node_set_usbradio() {
+    echo "doing do_node_set_usbradio" >>$logfile
 
+    # Load module
     do_noload_chan_modules
+    do_load_chan_module "usbradio"
 
-    # Load module and set rxchannel
-    sed -i "/^noload.\+chan_usbradio/ s/noload/load/"				$CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*Radio/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+    # Set [node] rxchannel
+    do_set_rxchannel "Radio/${CURRENT_NODE}"
 
-    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+    # Add the [node] to the USBRadio configuration 
+    TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
+	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/usbradio.conf
+    TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/usbradio.conf
 
     AST_RESTART=1
 }
 
-do_set_voter() {
-    echo "doing do_set_voter" >>$logfile
+do_node_set_voter() {
+    echo "doing do_node_set_voter" >>$logfile
 
+    # Load module
     do_noload_chan_modules
+    do_load_chan_module "voter"
 
-    # Load module and set rxchannel
-    sed -i "/^noload.\+chan_voter/ s/noload/load/"				$CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*Voter/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+    # Set [node] rxchannel
+    do_set_rxchannel "Voter/${CURRENT_NODE}"
 
-    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
+    # Add the [node] to the Voter configuration 
+    TEMPLATE_EDIT_START	$CONFIG_DIR/voter.conf
+	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/voter.conf
+    TEMPLATE_EDIT_END	$CONFIG_DIR/voter.conf
+
+    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/voter.conf
 
     AST_RESTART=1
 }
 
-do_set_pseudo() {
+do_node_set_pseudo() {
     echo "doing do_set_pesudo" >>$logfile
 
+    # Load module
     do_noload_chan_modules
+    do_load_chan_module "dahdi"
 
-    # Load module (is chan_dahdi always loaded?) and set rxchannel
-    sed -i "/^noload.\+chan_dahdi/ s/noload/load/"				$CONFIG_DIR/modules.conf
-    sed -i '/^;\s*rxchannel\s*=\s*dahdi\/pseudo/ s/;\s*rxchannel/rxchannel/'	$CONFIG_DIR/rpt.conf
+    # Set [node] rxchannel
+    do_set_rxchannel "dahdi/pseudo"
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
     AST_RESTART=1
 }
 
-do_set_quadradio() {
+do_node_set_quadradio() {
     echo "doing do_set_quad" >>$logfile
 
+    # Load module
     do_noload_chan_modules
+    do_load_chan_module "dahdi"
 
-    # Set rxchannel (No dahdi/pesudo module?)
-    sed -i "/^;\s*rxchannel\s*=\s*Dahdi/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+    # Set [node] rxchannel
+    do_set_rxchannel "Dahdi/1"
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
     AST_RESTART=1
 }
 
-do_set_usrp() {
-    echo "doing do_set_usrp" >>$logfile
+do_node_set_usrp() {
+    echo "doing do_node_set_usrp" >>$logfile
 
+    # Load module
     do_noload_chan_modules
+    do_load_chan_module "usrp"
 
-    # Load module and set rxchannel
-    sed -i "/^noload.\+chan_usrp/ s/noload/load/"				$CONFIG_DIR/modules.conf
-    sed -i "/^;\s*rxchannel\s*=\s*USRP/ s/^;\s*rxchannel/rxchannel/"		$CONFIG_DIR/rpt.conf
+    # Set [node] rxchannel
+    do_set_rxchannel "USRP/127.0.0.1:34001:32001"
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
@@ -471,60 +640,112 @@ do_set_usrp() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
+get_ami_settings () {
+    #sed removes all before = and any after ;
+    CURRENT_AMI_SECRET=$(grep '^secret\s*=\s*' $CONFIG_DIR/manager.conf			\
+	| tail -1									\
+	| sed 's/^secret\s*=\s*//;s/\s*;.*$//')
+
+}
+
 get_node_settings () {
-    #sed remove first and last character
-    CURRENT_NODE=$(grep -o '^\[[0-9]*\]' $CONFIG_DIR/rpt.conf | sed 's/^.//;s/.$//')
+    # collect info for [CURRENT_NODE]
 
-    #sed captures everything between : and @
-    CURRENT_PASSWD=$(grep '^register.*=>\s*' $CONFIG_DIR/rpt_http_registrations.conf | sed 's/.*:\(.*\)@.*/\1/')
+    CURRENT_CALLSIGN=""
+    CURRENT_DUPLEX=""
+    CURRENT_INTERFACE=""
+    CURRENT_PASSWORD=""
+    CURRENT_STATPOST="No"
+
+    AWK_TMP=$(mktemp)
+
+    awk	"BEGIN			{ p=0; }
+	 /^[ 	]*;/		{ next; }
+	 /^$/			{ next; }
+	 /^\[node-main]/	{ p=1; next; }
+	 /^\[${CURRENT_NODE}]/	{ p=1; next; }
+	 /^\[/			{ p=0; }
+	 p==1			{ print; }
+	"			"${CONFIG_DIR}/rpt.conf"	\
+    | sed -e 's/[ 	]*;.*//'				\
+	  -e 's/[ 	]*\([^ 	]*\)=[ 	]*\(.*\)/\1	\2/'	\
+    > $AWK_TMP
+
+    while read key value
+    do
+	case "$key" in
+	    "idtalkover" )
+		CURRENT_CALLSIGN=$(echo $value | sed 's/.*|i\([0-9a-zA-Z/-]*\).*/\1/')
+		;;
+	    "duplex" )
+		CURRENT_DUPLEX=$value
+		;;
+	    "rxchannel" )
+		RXCHANNEL=$(echo $value | sed 's/^rxchannel\s*=\s*//; s/\s*; .*$//')
+		case "$RXCHANNEL" in
+		    SimpleUSB/* )
+			CURRENT_INTERFACE="SimpleUSB"
+			;;
+		    Radio/* )
+			CURRENT_INTERFACE="USBRadio"
+			;;
+		    Voter/* )
+			CURRENT_INTERFACE="Voter"
+			;;
+		    dahdi/pseudo )
+			CURRENT_INTERFACE="No radio interface or HUB node"
+			;;
+		    Dahdi/1 )
+			CURRENT_INTERFACE="PCI Quad Radio Card"
+			;;
+		    USRP/* )
+			CURRENT_INTERFACE="USRP"
+			;;
+		esac
+		;;
+	    "statpost_url" )
+		CURRENT_STATPOST="Yes"
+		;;
+	    * )
+		;;
+	esac
+    done < $AWK_TMP
+
+    rm $AWK_TMP
+
+    # ... and pickup the node password too!
+    CURRENT_PASSWD=$(grep "^register.*=>\s*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
+	| sed 's/.*:\(.*\)@.*/\1/')
     if [[ -z $CURRENT_PASSWD ]]; then
-        CURRENT_PASSWD='Not Set'
-    fi
-
-    #sed captures alphanumeric between |i and the rest of line
-    CURRENT_CALLSIGN=$(grep '^idtalkover\s*=\s*' $CONFIG_DIR/rpt.conf | sed 's/.*|i\([0-9a-zA-Z/-]*\).*/\1/')
-
-    #sed captures digits after =
-    CURRENT_DUPLEX=$(grep '^duplex\s*=\s*' $CONFIG_DIR/rpt.conf | sed 's/^duplex\s*=\s*\([0-9]*\).*/\1/')
-
-    #sed removes all before = and any after ;
-    CURRENT_INTERFACE=$(grep '^rxchannel\s*=\s*' $CONFIG_DIR/rpt.conf | sed 's/^rxchannel\s*=\s*//;s/\s*;.*$//')
-
-    #sed removes all before = and any after ;
-    CURRENT_AMI_SECRET=$(grep '^secret\s*=\s*' $CONFIG_DIR/manager.conf | sed 's/^secret\s*=\s*//;s/\s*;.*$//')
-
-    ANSWER=$(grep -c "^;statpost_url\s*=" $CONFIG_DIR/rpt.conf)
-    if [[ $ANSWER -eq 1 ]]; then
-        CURRENT_STATPOST="No"
-    else
-        CURRENT_STATPOST="Yes"
+	CURRENT_PASSWD='Not Set'
     fi
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_interface_tune_cli() {
-    get_node_settings
+    echo "doing do_interface_tune_cli" >>$logfile
+
     if [[ $CURRENT_INTERFACE == *"SimpleUSB"* ]]; then
-        clear
-        /usr/sbin/simpleusb-tune-menu
-        RC=$?
-        clear
-        if [[ $RC -ne 0 ]]; then
-            whiptail --title "$TITLE" --msgbox "SimpleUSB CLI did not launch. Try restarting Asterisk." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-        fi
-    elif [[ $CURRENT_INTERFACE == *"Radio/usb"* ]]; then
-        clear
-        /usr/sbin/radio-tune-menu
-        RC=$?
-        clear
-        if [[ $RC -ne 0 ]]; then
-            whiptail --title "$TITLE" --msgbox "USB Radio CLI did not launch. Try restarting Asterisk." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-        fi
+	clear
+	/usr/sbin/simpleusb-tune-menu
+	RC=$?
+	clear
+	if [[ $RC -ne 0 ]]; then
+	    whiptail --title "$TITLE" --msgbox "SimpleUSB tuning CLI did not launch. Try restarting Asterisk." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	fi
+    elif [[ $CURRENT_INTERFACE == *"Radio"* ]]; then
+	clear
+	/usr/sbin/radio-tune-menu
+	RC=$?
+	clear
+	if [[ $RC -ne 0 ]]; then
+	    whiptail --title "$TITLE" --msgbox "USB Radio tuning CLI did not launch. Try restarting Asterisk." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	fi
     elif [[ $CURRENT_INTERFACE == *"pseudo"* ]]; then
-        whiptail --title "$TITLE" --msgbox "No tuning is needed for this node." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --title "$TITLE" --msgbox "No tuning is needed for this node." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     else
-        whiptail --title "$TITLE" --msgbox "$CURRENT_INTERFACE is not supported. Use editor." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --title "$TITLE" --msgbox "$CURRENT_INTERFACE is not supported. Use editor." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     fi
 }
 
@@ -536,13 +757,13 @@ Node Setup Menu Instructions
 
 For new nodes you should choose values for each one of these items.
 
-1 The duplex will be explained when selected. Most often you will set it to 1.
-2 The node number (assigned by AllStarLink.org)
-3 The node password you were assigned that corresponds with your node number. The node number and password is how your node connects to the AllStarLink network.
-4 Your ham radio call sign.
-5 The AMI password used for Allmon, Supermon, etc. The AMI password allows other web applications to monitor and control your node from a browser.
-6 The type of radio interface. Most often you will use SimpleUSB.
-7 Send statistics (yes or no) to "stats.allstarlink.org". This allows you and others to see the status and connections of your node including the location on a map.
+1 The node number (assigned by AllStarLink.org)
+2 The node password you were assigned that corresponds with your node number. The node number and password is how your node connects to the AllStarLink network.
+3 Your ham radio call sign.
+4 The type of radio interface. Most often you will use "SimpleUSB".
+5 The duplex will be explained when selected. Most often you will set it to "1".
+6 Send statistics (yes or no) to "stats.allstarlink.org". This allows you and others to see the status and connections of your node including the location on a map.
+7 This selection allows you to tune your "SimpleUSB" and "USBRadio" interfaces.
 
 These settings will go into effect when Asterisk is restarted.
 
@@ -552,50 +773,212 @@ EOT
 }
 
 do_allstar_node_setup_menu() {
-    echo "Node Setup Menu" >>$logfile
+    echo "do_allstar_node_setup_menu" >>$logfile
 
     while true; do
-        calc_wt_size
-        get_node_settings
+	calc_wt_size
+	get_node_settings
 
-        ANSWER=$(whiptail					\
+	ANSWER=$(whiptail					\
 		    --title "$TITLE"				\
 		    --menu "AllStar Node Setup Menu"		\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
 		    --ok-button "Select"			\
-		    --cancel-button "Back to Node Setup"	\
-            "1" "Duplex type      : $CURRENT_DUPLEX"		\
-            "2" "Node number      : $CURRENT_NODE"		\
-            "3" "Node password    : $CURRENT_PASSWD"		\
-            "4" "Node callsign    : $CURRENT_CALLSIGN"		\
-            "5" "AMI password     : $CURRENT_AMI_SECRET"	\
-            "6" "Radio interface  : $CURRENT_INTERFACE"		\
-            "7" "Post node status : $CURRENT_STATPOST"		\
-            "I" "Node Setup Menu Instructions"			\
-            3>&1 1>&2 2>&3)
-        if [[ $? -ne 0 ]]; then
-            return
-        fi
+		    --cancel-button "Back"			\
+	    "1" "Node number      : $CURRENT_NODE"		\
+	    "2" "Node password    : $CURRENT_PASSWD"		\
+	    "3" "Node callsign    : $CURRENT_CALLSIGN"		\
+	    "4" "Radio interface  : $CURRENT_INTERFACE"		\
+	    "5" "Duplex type      : $CURRENT_DUPLEX"		\
+	    "6" "Post node status : $CURRENT_STATPOST"		\
+	    "7" "Interface Tune CLI"				\
+	    "I" "Node Setup Menu Instructions"			\
+	    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
 
 	case "$ANSWER" in
-            1) do_select_duplex
-	       ;;
-            2) do_select_node_number
-	       ;;
-            3) do_select_node_password
-	       ;;
-            4) do_select_node_callsign
-	       ;;
-            5) do_select_ami_secret
-	       ;;
-            6) do_select_interface
-	       ;;
-            7) do_select_statpost
-	       ;;
-            I) do_node_setup_menu_info
-	       ;;
-            *) whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	       ;;
+	    1)	do_update_node_number
+		;;
+	    2)	do_update_node_password
+		;;
+	    3)	do_update_node_callsign
+		;;
+	    4)	do_update_node_interface
+		;;
+	    5)	do_update_node_duplex
+		;;
+	    6)	do_update_node_statpost
+		;;
+	    7)	do_interface_tune_cli
+		;;
+	    I)	do_node_setup_menu_info
+		;;
+	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+		;;
+	esac
+    done
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_node_add() {
+    echo "do_node_add" >>$logfile
+
+    while true; do
+	calc_wt_size
+
+	ANSWER=$(whiptail					\
+		    --title "$TITLE"				\
+		    --inputbox "Enter new node number :"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH		\
+		    ""						\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9]\+$
+	if ! [[ $ANSWER =~ $re ]]; then
+	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ ${nodes[@]} =~ $ANSWER ]]; then
+	    whiptail --msgbox "Node number \"$ANSWER\" is already defined, please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
+	    CURRENT_NODE=$ANSWER
+	    break
+	fi
+    done
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
+	# add the per-node category
+	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}" "node-main"	$CONFIG_DIR/rpt.conf
+
+	# ... and update [nodes]
+	sed -i -e "/^\[nodes]/,/^\[/ { /^$/i\\
+${CURRENT_NODE} = radio@127.0.0.1:4589/491300,NONE
+} "								$CONFIG_DIR/rpt.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
+
+    update_file_permissions $CONFIG_DIR/rpt.conf
+
+    AST_RESTART=1
+
+    # ... and let's setup the new node too!
+    do_allstar_node_setup_menu
+}
+
+do_node_remove() {
+    echo "do_node_remove" >>$logfile
+
+    while true; do
+	calc_wt_size
+
+	ANSWER=$(whiptail					\
+		    --title "$TITLE"				\
+		    --inputbox "Enter node number to remove :"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH		\
+		    ""						\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9]\+$
+	if ! [[ $ANSWER =~ $re ]]; then
+	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ ! ${nodes[@]} =~ $ANSWER ]]; then
+	    whiptail --msgbox "There is no configuration for node number \"$ANSWER\", please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
+	    break
+	fi
+    done
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
+	# remove the per-node category
+	TEMPLATE_CATEGORY_REMOVE ${ANSWER}			$CONFIG_DIR/rpt.conf
+
+	# ... and update [nodes]
+	sed -i -e "/^\[nodes]/,/^\[/ { /^${ANSWER}\s*=/d }"	$CONFIG_DIR/rpt.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
+
+    # Remove the [node] from the SimpleUSB configuration 
+    TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
+	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/simpleusb.conf
+    TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
+
+    # Remove the [node] from the USBRadio configuration 
+    TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
+	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/usbradio.conf
+    TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
+
+    # Remove the [node] from the Voter configuration 
+    TEMPLATE_EDIT_START	$CONFIG_DIR/voter.conf
+	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/voter.conf
+    TEMPLATE_EDIT_END	$CONFIG_DIR/voter.conf
+
+    update_file_permissions $CONFIG_DIR/rpt.conf $CONFIG_DIR/simpleusb.conf $CONFIG_DIR/usbradio.conf $CONFIG_DIR/voter.conf
+
+    AST_RESTART=1
+}
+
+do_allstar_node_select_menu() {
+    echo "do_allstar_node_select_menu" >>$logfile
+
+    while true; do
+	calc_wt_size
+
+	# get node list
+	nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
+	#echo "nodes = ${nodes[*]}"
+	#echo "    # = ${#nodes[@]}"
+
+	if [ ${#nodes[@]} -eq 1 -a "${nodes[0]}" = "1999" ]; then
+	    # if we only have the [template] node
+	    CURRENT_NODE="${nodes[0]}"
+	    do_allstar_node_setup_menu
+	    return
+	fi
+
+	# build menu selection for the nodes
+	newarr=()
+	for i in ${!nodes[@]}; do
+	    newarr+=("$((i + 1))" "Update node ${nodes[$i]}")
+	done
+
+	if [[ ${#newarr[@]} -gt 0 ]]; then
+	    SELECTED="1"
+	else
+	    SELECTED="A"
+	fi
+
+	ANSWER=$(whiptail					\
+		    --title "$TITLE"				\
+		    --default-item "$SELECTED"			\
+		    --menu "AllStar Node Select Menu"		\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
+		    --ok-button "Select"			\
+		    --cancel-button "Back"			\
+		    "A" "Add Node"				\
+		    "R" "Remove Node"				\
+		    "${newarr[@]}"				\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9]\+$
+	if [[ $ANSWER =~ $re ]]; then
+	    CURRENT_NODE="${nodes[$((ANSWER - 1))]}"
+	    do_allstar_node_setup_menu
+	    continue
+	fi
+
+	case "$ANSWER" in
+	    A)	do_node_add	;;
+	    R)	do_node_remove	;;
+	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+		;;
 	esac
     done
 }
@@ -614,7 +997,9 @@ Before changing any settings you should make a copy of the current configuration
 
 Changes will go into effect once Asterisk is restarted with menu item "2".
 
-If this is a new setup, you should do all of item "1", then do menu items "2" and "3". That should be all that is needed to get your node up and running.
+Menu item "3" allows you to change the Asterisk Management Interface (AMI) password.  The AMI password is used to update the configuration.  AMI is also allows other web applications (e.g. Allmon, Supermon, etc) to monitor and control your node from a browser.
+
+If this is a new setup, you should do all of item "1" and then do menu item "2"". That should be all that is needed to get your node up and running.
 
 For help see https://community.allstarlink.org
 EOT
@@ -622,35 +1007,35 @@ EOT
 }
 
 do_main_menu() {
-    echo "Node Setup Main Menu" >>$logfile
+    echo "do_main_menu" >>$logfile
 
     while true; do
-        calc_wt_size
+	calc_wt_size
 
 	NEED_RESTART=""
 	if [[ $AST_RESTART -ne 0 ]]; then
 	    NEED_RESTART="<-- Needed"
 	fi
 
-        ANSWER=$(whiptail						\
+	ANSWER=$(whiptail						\
 		    --title "$TITLE"					\
 		    --menu "Node Setup Main Menu"			\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
-		    --ok-button Select					\
-		    --cancel-button "Exit Node Setup"			\
-	            "1" "AllStar Node Setup Menu"			\
+		    --ok-button "Select"				\
+		    --cancel-button "Exit"				\
+		    "1" "AllStar Node Setup Menu"			\
 		    "2" "Restart Asterisk         $NEED_RESTART"	\
-		    "3" "Interface Tune CLI"				\
+	  	    "3" "Update Asterisk AMI password"			\
 		    "B" "Backup and Restore Menu"			\
 		    "I" "Main Menu Instructions"			\
 		    3>&1 1>&2 2>&3)
-        if [[ $? -ne 0 ]]; then
-            do_exit
+	if [[ $? -ne 0 ]]; then
+	    do_exit
 	    continue
 	fi
 
 	case "$ANSWER" in
-	    1)	do_allstar_node_setup_menu
+	    1)	do_allstar_node_select_menu
 		;;
 	    2)	AST_RESTART=0
 		astres.sh
@@ -662,7 +1047,7 @@ do_main_menu() {
 		fi
 		clear
 		;;
-	    3)	do_interface_tune_cli
+	    3)	do_update_ami_secret
 		;;
 	    B)	do_backup_restore_menu
 		;;
@@ -684,11 +1069,11 @@ do_exit() {
 	    --title "$TITLE"			\
 	    --yesno "Asterisk must be restarted to make your changes active.\n\nAre you sure you want to exit now?"	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-        if [[ $? -eq 0 ]]; then
-            exit 0
-        fi
+	if [[ $? -eq 0 ]]; then
+	    exit 0
+	fi
     else
-        exit 0
+	exit 0
     fi
 
     return 0	// back to do_main_menu
