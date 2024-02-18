@@ -154,7 +154,7 @@ do_update_node_callsign() {
 	return
     fi
 
-    re=^[0-9A-Z]{3,}$
+    re=^[0-9A-Z/-]{3,}$
     if ! [[ $ANSWER =~ $re ]]; then
 	whiptail	\
 	    --msgbox "A call sign may only uppercase letters and numbers. The call must be 3 or more characters in length."	\
@@ -172,15 +172,13 @@ do_node_set_callsign() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
-	# if present, remove any existing "idrecording" and "idtalkover" settings
-	# for this node and then add settings with the requested callsign
+	# if present, remove any existing "idrecording" setting for
+	# this node and then add the requested callsign
 	#
 	sed	-i							\
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^idrecording\s*=/d; }"	\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^idtalkover\s*=/d;  }"	\
 		-e "/^\[$CURRENT_NODE]/a\\
-idrecording = |i${NEW_CALLSIGN}/R\\
-idtalkover  = |i${NEW_CALLSIGN}
+idrecording = |i${NEW_CALLSIGN}
 "									$CONFIG_DIR/rpt.conf
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
@@ -674,7 +672,7 @@ get_node_settings () {
     while read key value
     do
 	case "$key" in
-	    "idtalkover" )
+	    "idrecording" )
 		CURRENT_CALLSIGN=$(echo $value | sed 's/.*|i\([0-9a-zA-Z/-]*\).*/\1/')
 		;;
 	    "duplex" )
@@ -713,7 +711,7 @@ get_node_settings () {
 
     rm $AWK_TMP
 
-    # ... and pickup the node password too!
+    # ... and pick up the node password too!
     CURRENT_PASSWD=$(grep "^register.*=>\s*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
 	| sed 's/.*:\(.*\)@.*/\1/')
     if [[ -z $CURRENT_PASSWD ]]; then
