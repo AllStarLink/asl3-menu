@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: asl3-menu
+Source: https://github.com/AllStarLink/asl3-menu
+
+Files: *
+Copyright: Copyright (C) 2024, AllStarLink, Inc. and others
+License: GPL-3
+  /usr/share/common-licenses/GPL-3
