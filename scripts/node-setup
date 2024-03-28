@@ -322,6 +322,32 @@ do_node_rename() {
 	$CONFIG_DIR/usbradio.conf		\
 	$CONFIG_DIR/voter.conf
 
+    # Update allowlist/denylist
+    ALLOW_BLOCK_LIST=( `sudo asterisk -r -x "database show %list/${CURRENT_NODE}/%"	\
+			| awk '/ results found/ { next; }				\
+			       { print $1; next; }					\
+			      '								\
+		       `								\
+		     )
+    if [[ ${#ALLOW_BLOCK_LIST[@]} -gt 0 ]]; then
+	for e in ${ALLOW_BLOCK_LIST[@]}; do
+	    node=$(echo $e | awk -F/ '{ print $4 }')
+	    case "$e" in
+		/allowlist/${CURRENT_NODE}/* )
+		    asterisk -r -x "database put allowlist/$NEW_NODE $node \"allow node $node to connect to node $NEW_NODE\""
+		    ;;
+		/denylist/${CURRENT_NODE}/*  )
+		    asterisk -r -x "database put denylist/$NEW_NODE  $node \"block node $node from connecting to node $NEW_NODE\""
+		    ;;
+		* )
+		    echo "Unexpected per-node database value (\"$e\")"
+		    ;;
+	    esac
+	done
+	asterisk -r -x "database deltree allowlist $CURRENT_NODE"
+	asterisk -r -x "database deltree denylist $CURRENT_NODE"
+    fi
+
     AST_RESTART=1
 }
 
@@ -541,7 +567,7 @@ do_node_set_simpleusb() {
     # Set [node] rxchannel
     do_set_rxchannel "SimpleUSB/${CURRENT_NODE}"
 
-    # Add the [node] to the SimpleUSB configuration 
+    # Add the [node] to the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/simpleusb.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
@@ -561,7 +587,7 @@ do_node_set_usbradio() {
     # Set [node] rxchannel
     do_set_rxchannel "Radio/${CURRENT_NODE}"
 
-    # Add the [node] to the USBRadio configuration 
+    # Add the [node] to the USBRadio configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/usbradio.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
@@ -581,7 +607,7 @@ do_node_set_voter() {
     # Set [node] rxchannel
     do_set_rxchannel "Voter/${CURRENT_NODE}"
 
-    # Add the [node] to the Voter configuration 
+    # Add the [node] to the Voter configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/voter.conf
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/voter.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/voter.conf
@@ -721,6 +747,247 @@ get_node_settings () {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
+get_allow_block_settings () {
+    CURRENT_NODE_ACCESS="Open"
+    COUNT=$(asterisk -r -x "database show %list/${CURRENT_NODE}/%" | awk '/ results found/ { print $1 }')
+    if [[ $COUNT -ne 0 ]]; then
+	CURRENT_NODE_ACCESS="Restricted"
+    fi
+}
+
+do_limit_nodes_add() {
+    ACTION="$1"		# "allow" or "block"
+    echo "do_limit_nodes_add ($ACTION)" >>$logfile
+
+    while true; do
+	calc_wt_size
+
+	ANSWER=$(whiptail					\
+		    --title "$TITLE"				\
+		    --inputbox "Enter node number to $ACTION"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH		\
+		    ""						\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9]\+$
+	if ! [[ $ANSWER =~ $re ]]; then
+	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
+	    break
+	fi
+    done
+
+    case "$ACTION" in
+	"allow" )
+	    asterisk -r -x "database put allowlist/$CURRENT_NODE $ANSWER \"allow node $ANSWER to connect to node $CURRENT_NODE\""
+	    ;;
+	"block" )
+	    asterisk -r -x "database put denylist/$CURRENT_NODE  $ANSWER \"block node $ANSWER from connecting to node $CURRENT_NODE\""
+	    ;;
+    esac
+
+    AST_RESTART=1
+    return
+}
+
+do_limit_nodes_remove() {
+    ACTION="$1"		# "allow" or "block"
+    echo "do_limit_nodes_remove ($ACTION)" >>$logfile
+
+    while true; do
+	calc_wt_size
+
+	ANSWER=$(whiptail							\
+		    --title "$TITLE"						\
+		    --inputbox "Node number to remove from the $ACTION list:"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH				\
+		    ""								\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9]\+$
+	if ! [[ $ANSWER =~ $re ]]; then
+	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
+	    LIMIT_NODE=$ANSWER
+	    break
+	fi
+    done
+
+    case "$ACTION" in
+	"allow" )
+	    asterisk -r -x "database del allowlist/$CURRENT_NODE $LIMIT_NODE"
+	    ;;
+	"block" )
+	    asterisk -r -x "database del denylist/$CURRENT_NODE $LIMIT_NODE"
+	    ;;
+    esac
+
+    AST_RESTART=1
+    return
+}
+
+do_limit_nodes_remove_all() {
+    ACTION="$1"		# "allow" or "block"
+    echo "do_limit_nodes_remove_all ($ACTION)" >>$logfile
+
+    case "$ACTION" in
+	"allow" )
+	    asterisk -r -x "database deltree allowlist $CURRENT_NODE"
+	    ;;
+	"block" )
+	    asterisk -r -x "database deltree denylist $CURRENT_NODE"
+	    ;;
+    esac
+
+    AST_RESTART=1
+    return
+}
+
+do_update_allow_block_lists() {
+    echo "do_update_allow_block_lists" >>$logfile
+
+    while true; do
+	calc_wt_size
+
+	# get allow/block list
+	ALLOW_BLOCK_LIST=( `sudo asterisk -r -x "database show %list/${CURRENT_NODE}/%"	\
+			   | awk '/ results found/ { next; }	\
+				  { print $1; next; }		\
+				 '				\
+			  `					\
+			 )
+	#echo "ALLOW_BLOCK_LIST(${#ALLOW_BLOCK_LIST[@]}) = ${ALLOW_BLOCK_LIST[@]}"
+
+	if [[ ${#ALLOW_BLOCK_LIST[@]} -eq 0 ]]; then
+
+	    read -r -d '' LIMIT_TEXT << EOT
+Connections to this node can be limited by providing a list of nodes that are "allowed" to connect OR a list of nodes that are "blocked" from connecting.
+
+Would you like to limit access to node $CURRENT_NODE?
+EOT
+	    whiptail					\
+		--title "$TITLE"			\
+		--yesno					\
+		--defaultno				\
+		"${LIMIT_TEXT}"				\
+		${WT_HEIGHT} ${WT_WIDTH}
+	    ANSWER=$?
+	    if [ "${ANSWER}" != "0" ]; then
+		break
+	    fi
+
+	    ANSWER=$(whiptail						\
+			--title "$TITLE"				\
+			--menu "AllStar Node Limit Connections Menu"	\
+			$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+			--ok-button "Select"				\
+			--cancel-button "Back"				\
+			"1" "Limit connections to specific nodes"	\
+			"2" "Block connections from specific nodes"	\
+			3>&1 1>&2 2>&3)
+	    if [[ $? -ne 0 ]]; then
+		break
+	    fi
+
+	    case "$ANSWER" in
+		1) do_limit_nodes_add "allow"	;;
+		2) do_limit_nodes_add "block"	;;
+		*) whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+		   ;;
+	    esac
+
+	else
+
+	    allowlist=()
+	    blocklist=()
+	    for e in ${ALLOW_BLOCK_LIST[@]}; do
+	        node=$(echo $e | awk -F/ '{ print $4 }')
+	        case "$e" in
+		    /allowlist/${CURRENT_NODE}/* )
+			allowlist+=("$node")
+			;;
+		    /denylist/${CURRENT_NODE}/*  )
+			blocklist+=("$node")
+			;;
+		    * )
+			echo "Unexpected per-node database value (\"$e\")"
+			;;
+	        esac
+	    done
+	    #echo "allowlist(${#allowlist[@]}) = ${allowlist[@]}"
+	    #echo "blocklist(${#blocklist[@]}) = ${blocklist[@]}"
+
+	    if [[ ${#allowlist[@]} -gt 0 ]]; then
+		ACTION="allow"
+		LIMIT_TYPE="allowed"
+		MENU_TITLE="AllStar Node Allowed Connections Menu"
+		read -r -d '' LIMIT_TEXT << EOT
+Connections to node $CURRENT_NODE are currently limited to the following nodes :
+
+${allowlist[@]}
+
+Would you like to change the list of allowed nodes?
+EOT
+	    else
+		ACTION="block"
+		LIMIT_TYPE="blocked"
+		MENU_TITLE="AllStar Node Blocked Connections Menu"
+		read -r -d '' LIMIT_TEXT << EOT
+All connections to node $CURRENT_NODE are allowed except for the following nodes :
+
+${blocklist[@]}
+
+Would you like to change the list of blocked nodes?
+EOT
+	    fi
+
+	    whiptail					\
+		--title "$TITLE"			\
+		--yesno					\
+		--defaultno				\
+		"${LIMIT_TEXT}"				\
+		${WT_HEIGHT} ${WT_WIDTH}
+	    ANSWER=$?
+	    if [ "${ANSWER}" != "0" ]; then
+		break
+	    fi
+
+	    ANSWER=$(whiptail						\
+			--title "$TITLE"				\
+			--menu "$MENU_TITLE"				\
+			$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+			--ok-button "Select"				\
+			--cancel-button "Back"				\
+			"A" "Add node to be $LIMIT_TYPE"		\
+			"R" "Remove $LIMIT_TYPE node"			\
+			"X" "Remove all $LIMIT_TYPE nodes"		\
+			3>&1 1>&2 2>&3)
+	    if [[ $? -ne 0 ]]; then
+		break
+	    fi
+
+	    case "$ANSWER" in
+		A) do_limit_nodes_add        $ACTION	;;
+		R) do_limit_nodes_remove     $ACTION	;;
+		X) do_limit_nodes_remove_all $ACTION	;;
+		*) whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+		   ;;
+	    esac
+	fi
+    done
+
+    get_allow_block_settings
+    return
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
 do_interface_tune_cli() {
     echo "doing do_interface_tune_cli" >>$logfile
 
@@ -756,12 +1023,13 @@ Node Setup Menu Instructions
 For new nodes you should choose values for each one of these items.
 
 1 The node number (assigned by AllStarLink.org)
-2 The node password you were assigned that corresponds with your node number. The node number and password is how your node connects to the AllStarLink network.
+2 The node password that corresponds with your node number. The node number and password is how your node connects to the AllStarLink network.
 3 Your ham radio call sign.
 4 The type of radio interface. Most often you will use "SimpleUSB".
 5 The duplex will be explained when selected. Most often you will set it to "1".
 6 Send statistics (yes or no) to "stats.allstarlink.org". This allows you and others to see the status and connections of your node including the location on a map.
-7 This selection allows you to tune your "SimpleUSB" and "USBRadio" interfaces.
+7 This selection allows you to limit connections to your node.
+8 This selection allows you to tune your "SimpleUSB" and "USBRadio" interfaces.
 
 These settings will go into effect when Asterisk is restarted.
 
@@ -772,6 +1040,8 @@ EOT
 
 do_allstar_node_setup_menu() {
     echo "do_allstar_node_setup_menu" >>$logfile
+
+    get_allow_block_settings
 
     while true; do
 	calc_wt_size
@@ -789,7 +1059,8 @@ do_allstar_node_setup_menu() {
 	    "4" "Radio interface  : $CURRENT_INTERFACE"		\
 	    "5" "Duplex type      : $CURRENT_DUPLEX"		\
 	    "6" "Post node status : $CURRENT_STATPOST"		\
-	    "7" "Interface Tune CLI"				\
+	    "7" "Node access list : $CURRENT_NODE_ACCESS"	\
+	    "8" "Interface Tune CLI"				\
 	    "I" "Node Setup Menu Instructions"			\
 	    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
@@ -809,7 +1080,9 @@ do_allstar_node_setup_menu() {
 		;;
 	    6)	do_update_node_statpost
 		;;
-	    7)	do_interface_tune_cli
+	    7)	do_update_allow_block_lists
+		;;
+	    8)	do_interface_tune_cli
 		;;
 	    I)	do_node_setup_menu_info
 		;;
@@ -900,17 +1173,17 @@ do_node_remove() {
 	sed -i -e "/^\[nodes]/,/^\[/ { /^${ANSWER}\s*=/d }"	$CONFIG_DIR/rpt.conf
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
-    # Remove the [node] from the SimpleUSB configuration 
+    # Remove the [node] from the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
 	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/simpleusb.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
 
-    # Remove the [node] from the USBRadio configuration 
+    # Remove the [node] from the USBRadio configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
 	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/usbradio.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
 
-    # Remove the [node] from the Voter configuration 
+    # Remove the [node] from the Voter configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/voter.conf
 	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/voter.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/voter.conf
@@ -1023,7 +1296,7 @@ do_main_menu() {
 		    --cancel-button "Exit"				\
 		    "1" "AllStar Node Setup Menu"			\
 		    "2" "Restart Asterisk         $NEED_RESTART"	\
-	  	    "3" "Update Asterisk AMI password"			\
+		    "3" "Update Asterisk AMI password"			\
 		    "B" "Backup and Restore Menu"			\
 		    "I" "Main Menu Instructions"			\
 		    3>&1 1>&2 2>&3)
@@ -1074,7 +1347,7 @@ do_exit() {
 	exit 0
     fi
 
-    return 0	// back to do_main_menu
+    return	// back to do_main_menu
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
