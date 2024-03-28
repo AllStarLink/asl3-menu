@@ -323,7 +323,7 @@ do_node_rename() {
 	$CONFIG_DIR/voter.conf
 
     # Update allowlist/denylist
-    ALLOW_BLOCK_LIST=( `sudo asterisk -r -x "database show %list/${CURRENT_NODE}/%"	\
+    ALLOW_BLOCK_LIST=( `asterisk -r -x "database show %list/${CURRENT_NODE}/%"	\
 			| awk '/ results found/ { next; }				\
 			       { print $1; next; }					\
 			      '								\
@@ -856,7 +856,7 @@ do_update_allow_block_lists() {
 	calc_wt_size
 
 	# get allow/block list
-	ALLOW_BLOCK_LIST=( `sudo asterisk -r -x "database show %list/${CURRENT_NODE}/%"	\
+	ALLOW_BLOCK_LIST=( `asterisk -r -x "database show %list/${CURRENT_NODE}/%"	\
 			   | awk '/ results found/ { next; }	\
 				  { print $1; next; }		\
 				 '				\
