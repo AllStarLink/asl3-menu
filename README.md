@@ -1,25 +1,49 @@
-# AllStarLink Version 3 Menu
+# AllStarLink Version 3 Menus
 
-This repository contains the ASL Menu system. Previous versions of ASL contain the menu within the `app_rpt` source repository. The menu is now in its own repo allowing improvements to be made independent of `app_rpt`.
+This repository contains the ASL Menu system.
+
+Previous versions of ASL included the menu system within the `ASL-Asterisk` source repositories.  The menus are now in their own repository allowing improvements to be made independently.
 
 ## Menu Design Goals
 
-- This menu should only perform Asterisk and node configurations (i.e. editing the config files). OS settings such as setting the IP address, time zone, hostname, etc should be done with other tools.
+- The menu system should only perform commands to manage Asterisk and the ASL node configurations (i.e. editing the config files). OS settings such as setting the IP address, time zone, hostname, etc should be done with other tools.
 
-- Initially, the menu may be a reworked ASL2 menu (the `asl-menu` script) updated for ASL3. At some point, maybe soon, this menu should use an API, perhaps Asterisk's AMI ([https://asterisk.phreaknet.org/#manageraction-UpdateConfig](https://asterisk.phreaknet.org/#manageraction-UpdateConfig)) in common with other utilities such as a web based system.
+- Initially, the menu system will consist of the ASL2 menu scripts ported and updated for ASL3.  Additional changes and enhancements will be added over time.
 
-- Ideally, any tool that edits the configuration files should assume other tools including text file editors are also being used to update the configuration.  We need to ensure compatibility.
+- The menu system will allow editing of the key node data elements including :
 
-- The menu should auto launch with SSH login's but this functionality may be disabled or enabled from the menu itself or other utilities.
+	- Node number
+	- Node password
+	- Node Callsign/ID
+	- Radio interface (e.g. USB sound device, HUB node)
+	- Duplex type (e.g. full duplex, half duplex, telemetry)
+	- USB Interface tuning
+	- Stat posting (to [http://stats.allstarlink.org](http://stats.allstarlink.org))
 
-- If no node has been configured the menu should auto launch to the "add node" menu.
+- The menu system will allow you to add (or remove) additional nodes.
 
-- Add node. Same data elements as Edit node.
+- The menu system will provide a simple option to backup (and restore) the configuration.  The backup archives will be stored locally and optionally in the cloud.
 
-- Delete node.
+- The menu can be setup to auto-launch with SSH login's.  This functionality can be enabled or disabled from the menu itself or other utilities.
 
-- Edit node data elements: Voice and CW IDs, channel driver, node number, node password, stat post (y/n), backup (call save_node script) node number and password, https registration node number and password.
+- Ideally, any tool that edits the configuration files should assume other tools including text file editors are also being used to update the configuration.  We are trying to ensure this level of compatibility.
 
-- Enable/disable other utilities: Allmon3, Web menu
+## Using the ASL Menu system
 
-- Entry for simple-tune-menu (or it’s replacement)
+At present, the menu system includes the following commands :
+
+- `/usr/sbin/asl-menu`
+- `/usr/sbin/node-setup`
+- `/usr/sbin/asl-backup-menu`, `/usr/sbin/save-node`, `/usr/sbin/restore-node`
+
+## Futures
+
+- We have already started discussions and are prototyping changes to have the menu system adopt Asterisk's AMI interface as a "better" way to update the configuration files.
+
+- Allow more detailed configuration of the ID (e.g. Voice, CW)
+
+- Add support to install and configure other utilities (e.g. Allmon3, web menus, etc)
+
+## Feedback
+
+Please create a GitHub "issue" for any problems you encounter with the menu system.  Requests for enhancement are also welcome.
