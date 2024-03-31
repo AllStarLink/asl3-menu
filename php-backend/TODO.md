@@ -15,21 +15,29 @@ Valid ASL commands:
 # To Do
 
 - Expand list of allowed rpt.conf cmds
-	- Q? what's missing?
-		- Maybe "--node\_set\_value --node\_key=<key> --node\_value=<value>" ?
-			- Need list of keys we are OK to update
-			- Need validation information for the associated values
-- Add high level commands
-	- Q? what's needed?
-- Build other .conf file allowed cmds
-	- ??
+
+	- Q? what's missing? needed?
+
+	- Maybe add "--command=node\_set\_value --node\_key=\<key> --node\_value=\<value>"?
+		- Need list of keys we are OK to update
+		- What validation should be performed on the associated values
+
 - Update the "node\_create" (and "node\_delete") handling of `simpleusb.conf`, `usbradio.conf`, and `voter.conf`
-	- **??** are these files going to be templatized?
-- Change reload. It’s not a boolean expression. The module to reload may be specified. 
-	- **??** should we be reloading "app\_rpt"?  "chan\_simpleusb"?  ...?
-	- **??** do we want every/any change to force a reload?  or defer changes until a batch/group has been completed (e.g. perform all of the updates associated with a node # change and then "kick"?  or have a specific [user/admin directed] command that would start/exec the reload function ?
+
+	- **??** do we need to support multiple sound devices?  If so, should we consider templatizing the configuration files?
+
+- Update "reload"
+
+	- The AMI reload option allows a boolean string (yes/no, true/false, on/off, 1/0) or the name of a specific module. 
+		- **??** should we be reloading everything (e.g. "yes")? "app\_rpt"?  "chan\_simpleusb"?  ...?
+
+	- **??** do we want any/every change to force a reload?  or defer changes until a batch/group have been completed (e.g. perform all of the updates associated with a node # change and then "kick"?  or have a specific [user/admin directed] command that would force the reload function?
+
 	- Obviously, we need to test the reload functionality
+
+- Other high level commands
+	- Q? what's missing? needed?
 
 # Notes
 
-- **??CONFIRM??** The "plan" was/is to change `simpleusb.conf` to use just the node # as the category for settings and NOT the node # with a "usb\_" prefix.  For example, use "[XXXXXX]" instead of "[usb\_XXXXXX]".  Same for `usbradio.conf`.
+- ?

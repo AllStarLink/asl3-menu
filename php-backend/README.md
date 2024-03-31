@@ -21,6 +21,7 @@ Valid ASL commands:
   node_list, node_show, node_create, node_create_full, node_delete
   node_rename, node_set_callsign, node_set_channel, node_set_duplex
   node_set_ipport, node_set_password, node_set_statistics, ami_show
+  ami_create, ami_set_secret, module_enable
 ```
 
 #### The "--host=\<host>" argument and "settings.ini" file :
