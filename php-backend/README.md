@@ -1,12 +1,22 @@
 # PHP Backend
 
-THe PHP backend is part of the Allstar menu.
+The PHP backend is part of the Allstar menu.
 It uses the Asterisk Manager Interface "UpdateConfig" action to provide an abstraction layer to the rather complex AMI.
 
-More informatioin on the AMI "UpdateConfig" can be found at [https://asterisk.phreaknet.org/#manageraction-UpdateConfig](https://asterisk.phreaknet.org/#manageraction-UpdateConfig)
+More information on the AMI "UpdateConfig" can be found at [https://asterisk.phreaknet.org/#manageraction-UpdateConfig](https://asterisk.phreaknet.org/#manageraction-UpdateConfig)
 
 Note: this script is a backend, not an end-user interface.
 The script may be run from the command line as follows:
+
+## WARNING
+
+Our early investigations and prototyping efforts with using AMI have identified a number of issues with the updates made to the configuration files.  Specifically, AMI doesn't appear to play nicely with comments and whitespace.  We are looking at a number of options including :
+
+- Changes to Asterisk/AMI to better preserve comments and whitespace
+- Reformatting the comments it the configuration files so that they will be less affected by AMI updates
+- Removing/relocating the comments from the configuration files
+
+Our overall goal here is to make things "better", not "worse"!
 
 ## The **`asl-configuration.php`** command :
 
@@ -42,7 +52,7 @@ user=server1-ami-user
 secret=server1-ami-password
 ```
 
-Note: if the local host is targetted and no "settings.ini" file is found then the command will use the "admin" user settings from `/etc/asterisk/manager.conf`.
+Note: if the local host is targeted and no "settings.ini" file is found then the command will use the "admin" user settings from `/etc/asterisk/manager.conf`.
 
 #### The "--reload" argument
 
