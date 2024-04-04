@@ -12,9 +12,9 @@ AST_RESTART=0
 CONFIG_DIR="${DESTDIR}/etc/asterisk"
 
 ASTERISK=/usr/sbin/asterisk
-ASTRES=/usr/sbin/astres.sh
-ASTUP=/usr/sbin/astup.sh
-ASTDN=/usr/sbin/astdn.sh
+ASTRES=/usr/bin/astres.sh
+ASTUP=/usr/bin/astup.sh
+ASTDN=/usr/bin/astdn.sh
 
 UPDATE_NODELIST=asl3-update-nodelist
 
@@ -137,7 +137,7 @@ do_finish() {
 do_node_setup() {
     echo "do_node_setup" >>$logfile
 
-    /usr/sbin/node-setup
+    /usr/bin/node-setup
 }
 
 do_asterisk_cli() {
@@ -311,18 +311,18 @@ do_updatenodelist_restart() {
 do_enable_login_menu() {
     echo "do_enable_login_menu" >>$logfile
 
-    grep -q "^sudo /usr/sbin/asl-menu$" $HOMEDIR/.bashrc >/dev/null 2>&1
+    grep -q "^sudo /usr/bin/asl-menu$" $HOMEDIR/.bashrc >/dev/null 2>&1
     RC=$?
     case $RC in
 	0 ) # Remove line
-	    sed -i "/^sudo \/usr\/sbin\/asl-menu/d" $HOMEDIR/.bashrc;
+	    sed -i "/^sudo \/usr\/bin\/asl-menu/d" $HOMEDIR/.bashrc;
 	    whiptail										\
 		--title "$TITLE"								\
 		--msgbox "The ASL \"menu\" will no longer be started at login for user \"$REALID\". You may set this again by selecting this menu item again."	\
 		$MSGBOX_HEIGHT $MSGBOX_WIDTH
 	    ;;
 	1 ) # Add line
-	    echo "sudo /usr/sbin/asl-menu" >> $HOMEDIR/.bashrc
+	    echo "sudo /usr/bin/asl-menu" >> $HOMEDIR/.bashrc
 	    whiptail										\
 		--title "$TITLE"								\
 		--msgbox "The ASL \"menu\" will now start at login for user \"$REALID\"."	\
@@ -531,7 +531,7 @@ do_sys_diags_menu() {
 do_backup_restore_menu() {
     echo "do_backup_restore_menu" >>$logfile
 
-    /usr/sbin/asl-backup-menu
+    /usr/bin/asl-backup-menu
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====

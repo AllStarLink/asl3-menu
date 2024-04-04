@@ -136,7 +136,7 @@ TEMPLATE_CATEGORY_REMOVE() {
 do_backup_restore_menu() {
     echo "do_backup_restore_menu" >>$logfile
 
-    /usr/sbin/asl-backup-menu
+    /usr/bin/asl-backup-menu
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====

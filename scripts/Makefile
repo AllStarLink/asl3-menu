@@ -1,5 +1,5 @@
 prefix ?= /usr
-scriptdir ?= $(prefix)/sbin
+scriptdir ?= $(prefix)/bin
 
 SCRIPT_FILES = $(filter-out Makefile, $(wildcard *))
 SCRIPT_INSTALLABLES = $(patsubst %, $(DESTDIR)$(scriptdir)/%, $(SCRIPT_FILES))
