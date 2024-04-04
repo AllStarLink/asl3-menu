@@ -6,7 +6,7 @@ PKGNAME = $(SRCNAME)
 RELVER = 1.0
 DEBVER = 1
 
-BUILDABLES = scripts # php-backend
+BUILDABLES = bin # php-backend
 
 ifdef ${DESTDIR}
 DESTDIR=${DESTDIR}
