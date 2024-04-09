@@ -19,7 +19,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get -y install \
 
 # Install build dependencies
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install \
-	pandoc --no-install-recommends
+	pandoc lsb-release --no-install-recommends
 
 # Import entrypoint script
 COPY ./entrypoint.sh /entrypoint.sh
