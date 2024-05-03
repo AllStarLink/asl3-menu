@@ -1,3 +1,9 @@
+asl3-menu (1.0-2) UNRELASED; urgency=medium
+
+  * Autobuilder
+
+ -- Jason McCormick <jason@mfamily.org>  Fri, 03 May 2024 18:00:04 -0400
+
 asl3-menu (1.0-1) UNRELASED; urgency=medium
 
   * Initial release.
