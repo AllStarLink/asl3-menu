@@ -14,6 +14,8 @@ MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
 TITLE="AllStarLink 3.0.0"
 
+SUB_MENU=0
+
 #logfile=/dev/null
 logfile=/tmp/node-setup.log
 
@@ -1328,12 +1330,17 @@ do_main_menu() {
 	    NEED_RESTART="<-- Needed"
 	fi
 
+	LABEL_CANCEL="Exit"
+	if [[ $SUB_MENU -ne 0 ]]; then
+	    LABEL_CANCEL="Back"
+	fi
+
 	ANSWER=$(whiptail						\
 		    --title "$TITLE"					\
 		    --menu "Node Setup Main Menu"			\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
 		    --ok-button "Select"				\
-		    --cancel-button "Exit"				\
+		    --cancel-button "$LABEL_CANCEL"			\
 		    "1" "AllStar Node Setup Menu"			\
 		    "2" "Restart Asterisk         $NEED_RESTART"	\
 		    "3" "Update Asterisk AMI password"			\
@@ -1391,6 +1398,19 @@ do_exit() {
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+	"--sub-menu" )
+	    SUB_MENU=1
+	    shift
+	    ;;
+
+	* )
+	    echo "Usage: $0 [ --sub-menu ]"
+	    exit 1
+    esac
+done
 
 /usr/bin/clear
 check_if_root

@@ -137,7 +137,7 @@ do_finish() {
 do_node_setup() {
     echo "do_node_setup" >>$logfile
 
-    /usr/bin/node-setup
+    /usr/bin/node-setup --sub-menu
 }
 
 do_asterisk_cli() {
