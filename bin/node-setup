@@ -77,8 +77,15 @@ TEMPLATE_EDIT_START() {
     # configuration file is tricky when no node/category follows.  To
     # address this we temporarily add a [category] at end of the file.
     #
-    sed -i -e "/^\[asl-menu]/d"		"${F}"
-    echo "[asl-menu]"			>> "${F}"
+
+    # if missing, add EOL to the end of the file
+    tail -c1 "${F}" | read -r _ || printf '\n'	>> "${F}"
+
+    # if present, remove any [old] temporary category
+    sed -i -e "/^\[asl-menu]/d"			"${F}"
+
+    # add our temporary category
+    echo "[asl-menu]"				>> "${F}"
 }
 
 TEMPLATE_EDIT_END() {
@@ -87,7 +94,7 @@ TEMPLATE_EDIT_END() {
     #
     # Remove our temporary [category]
     #
-    sed -i -e "/^\[asl-menu]/d"		"${F}"
+    sed -i -e "/^\[asl-menu]/d"			"${F}"
 }
 
 TEMPLATE_CATEGORY_ADD() {
@@ -96,7 +103,7 @@ TEMPLATE_CATEGORY_ADD() {
     F="${3}"	# file
 
     # check if the [category] already exists
-    grep -q "^\[${C}]"			"${F}"
+    grep -q "^\[${C}]"				"${F}"
     if [[ $? -eq 0 ]]; then
 	return
     fi
@@ -111,7 +118,7 @@ TEMPLATE_CATEGORY_ADD() {
     # ... and add the per-node category
     sed -i -e "/^\[asl-menu]/i\\
 [${C}]${T}\\
-"					"${F}"
+"						"${F}"
 }
 
 TEMPLATE_CATEGORY_REMOVE() {
@@ -288,9 +295,6 @@ do_node_rename() {
 	-e "/^rxchannel\s*=\s*Radio\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	\
 	-e "/^rxchannel\s*=\s*Voter\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt.conf
 
-    # Update appropriate extensions.conf lines
-    sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/extensions.conf
-
     # Update node registration
     #
     # Note:
@@ -300,6 +304,9 @@ do_node_rename() {
     sed -i										\
 	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"			\
 	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
+
+    # Update appropriate extensions.conf lines
+    sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/extensions.conf
 
     # Update "save-node" configuration
     sed -i -e "/^NODE\s*=/ s/NODE\s*=.*/NODE=$NEW_NODE/"				$CONFIG_DIR/savenode.conf
@@ -315,8 +322,8 @@ do_node_rename() {
 
     update_file_permissions			\
 	$CONFIG_DIR/rpt.conf			\
-	$CONFIG_DIR/extensions.conf		\
 	$CONFIG_DIR/rpt_http_registrations.conf	\
+	$CONFIG_DIR/extensions.conf		\
 	$CONFIG_DIR/savenode.conf		\
 	$CONFIG_DIR/simpleusb.conf		\
 	$CONFIG_DIR/usbradio.conf		\
@@ -789,7 +796,6 @@ do_limit_nodes_add() {
 	    ;;
     esac
 
-    AST_RESTART=1
     return
 }
 
@@ -828,7 +834,6 @@ do_limit_nodes_remove() {
 	    ;;
     esac
 
-    AST_RESTART=1
     return
 }
 
@@ -845,7 +850,6 @@ do_limit_nodes_remove_all() {
 	    ;;
     esac
 
-    AST_RESTART=1
     return
 }
 
@@ -1117,6 +1121,9 @@ do_node_add() {
 	    whiptail --msgbox "Node number \"$ANSWER\" is already defined, please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	else
 	    CURRENT_NODE=$ANSWER
+	    if [ -z "$CURRENT_PASSWORD" ]; then
+		CURRENT_PASSWORD="abcdef"
+	    fi
 	    break
 	fi
     done
@@ -1126,12 +1133,33 @@ do_node_add() {
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}" "node-main"	$CONFIG_DIR/rpt.conf
 
 	# ... and update [nodes]
-	sed -i -e "/^\[nodes]/,/^\[/ { /^$/i\\
-${CURRENT_NODE} = radio@127.0.0.1:4589/491300,NONE
-} "								$CONFIG_DIR/rpt.conf
+	ex $CONFIG_DIR/rpt.conf					<<_END_OF_INPUT
+/^\[nodes]
+/^\[
+i
+${CURRENT_NODE} = radio@127.0.0.1/${CURRENT_NODE},NONE
+
+.
+:wq
+_END_OF_INPUT
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
-    update_file_permissions $CONFIG_DIR/rpt.conf
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
+	# add the registration
+	ex $CONFIG_DIR/rpt_http_registrations.conf		<<_END_OF_INPUT
+/^\[registrations]
+/^\[
+i
+register => ${CURRENT_NODE}:${CURRENT_PASSWORD}@register.allstarlink.org
+
+.
+:wq
+_END_OF_INPUT
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
+
+    update_file_permissions			\
+	$CONFIG_DIR/rpt.conf			\
+	$CONFIG_DIR/rpt_http_registrations.conf
 
     AST_RESTART=1
 
@@ -1161,34 +1189,46 @@ do_node_remove() {
 	elif [[ ! ${nodes[@]} =~ $ANSWER ]]; then
 	    whiptail --msgbox "There is no configuration for node number \"$ANSWER\", please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	else
+	    REM_NODE=$ANSWER
 	    break
 	fi
     done
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	# remove the per-node category
-	TEMPLATE_CATEGORY_REMOVE ${ANSWER}			$CONFIG_DIR/rpt.conf
+	TEMPLATE_CATEGORY_REMOVE ${REM_NODE}			$CONFIG_DIR/rpt.conf
 
 	# ... and update [nodes]
-	sed -i -e "/^\[nodes]/,/^\[/ { /^${ANSWER}\s*=/d }"	$CONFIG_DIR/rpt.conf
+	sed -i -e "/^\[nodes]/,/^\[/ { /^${REM_NODE}\s*=/d }"	$CONFIG_DIR/rpt.conf
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
+	# remove the per-node registration
+	sed -i -e "/^\[registrations]/,/^\[/ { /^register\s*=>\s*${REM_NODE}/d; }"	\
+								$CONFIG_DIR/rpt_http_registrations.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
 
     # Remove the [node] from the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
-	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/simpleusb.conf
+	TEMPLATE_CATEGORY_REMOVE "${REM_NODE}"			$CONFIG_DIR/simpleusb.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
 
     # Remove the [node] from the USBRadio configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
-	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/usbradio.conf
+	TEMPLATE_CATEGORY_REMOVE "${REM_NODE}"			$CONFIG_DIR/usbradio.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
 
     # Remove the [node] from the Voter configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/voter.conf
-	TEMPLATE_CATEGORY_REMOVE "${CURRENT_NODE}"		$CONFIG_DIR/voter.conf
+	TEMPLATE_CATEGORY_REMOVE "${REM_NODE}"			$CONFIG_DIR/voter.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/voter.conf
 
-    update_file_permissions $CONFIG_DIR/rpt.conf $CONFIG_DIR/simpleusb.conf $CONFIG_DIR/usbradio.conf $CONFIG_DIR/voter.conf
+    update_file_permissions			\
+	$CONFIG_DIR/rpt.conf			\
+	$CONFIG_DIR/rpt_http_registrations.conf	\
+	$CONFIG_DIR/simpleusb.conf		\
+	$CONFIG_DIR/usbradio.conf		\
+	$CONFIG_DIR/voter.conf
 
     AST_RESTART=1
 }
