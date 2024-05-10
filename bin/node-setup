@@ -153,25 +153,35 @@ do_backup_restore_menu() {
 do_update_node_callsign() {
     echo "doing do_update_node_callsign" >>$logfile
 
-    ANSWER=$(whiptail							\
-		--title "$TITLE"					\
-		--inputbox "Enter the call sign for node $NEW_NODE :"	\
-		$MSGBOX_HEIGHT $MSGBOX_WIDTH				\
-		"$CURRENT_CALLSIGN"					\
-		3>&1 1>&2 2>&3)
-    if [[ $? -ne 0 ]]; then
+    while true; do
+	calc_wt_size
+
+	ANSWER=$(whiptail							\
+		    --title "$TITLE"						\
+		    --inputbox "Enter the call sign for node $NEW_NODE :"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH				\
+		    "$CURRENT_CALLSIGN"						\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9A-Z/-]{3,}$
+	if [[ $ANSWER =~ $re ]]; then
+	    break
+	fi
+
+	whiptail	\
+    	    --msgbox "A call sign may only uppercase letters and numbers. The call must be 3 or more characters in length."	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    done
+
+    if [[ $ANSWER == $CURRENT_CALLSIGN ]]; then
 	return
     fi
 
-    re=^[0-9A-Z/-]{3,}$
-    if ! [[ $ANSWER =~ $re ]]; then
-	whiptail	\
-	    --msgbox "A call sign may only uppercase letters and numbers. The call must be 3 or more characters in length."	\
-	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    elif [[ $ANSWER != $CURRENT_CALLSIGN ]]; then
-	NEW_CALLSIGN=$ANSWER
-	do_node_set_callsign
-    fi
+    NEW_CALLSIGN=$ANSWER
+    do_node_set_callsign
 }
 
 do_node_set_callsign() {
@@ -263,27 +273,84 @@ duplex = $NEW_DUPLEX
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_update_node_number() {
-    echo "doing do_update_node_number" >>$logfile
+do_update_iax_bindport() {
+    echo "doing do_update_iax_bindport" >>$logfile
 
-    ANSWER=$(whiptail							\
-		--title "$TITLE"					\
-		--inputbox "The current node number is $CURRENT_NODE.\n\nEnter new node number :"	\
-		$MSGBOX_HEIGHT $MSGBOX_WIDTH				\
-		"$CURRENT_NODE"						\
-		3>&1 1>&2 2>&3)
-    if [[ $? -ne 0 ]]; then
+    CURRENT_BINDPORT=$(grep '^bindport\s*=\s*'	$CONFIG_DIR/iax.conf	\
+	| sed 's/^bindport\s*=\s*//;s/\s*;.*$//')
+
+    while true; do
+	calc_wt_size
+
+	ANSWER=$(whiptail						\
+		    --title "$TITLE"					\
+		    --inputbox "The current IAX server port is $CURRENT_BINDPORT.\n\nEnter new UDP port :"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH			\
+		    "$CURRENT_BINDPORT"					\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9]\+$
+	if [[ $ANSWER =~ $re && $ANSWER -gt 0 && $ANSWER -lt 65536 ]]; then
+	    break
+	fi
+
+	whiptail --msgbox "The node number must be a number between 1 and 65535\n\nNote: the default port is 4569." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    done
+
+    if [[ $ANSWER == $CURRENT_BINDPORT ]]; then
 	return
     fi
 
-    re=^[0-9]\+$
-    if ! [[ $ANSWER =~ $re ]]; then
+    NEW_BINDPORT=$ANSWER
+    do_set_iax_bindport
+}
+
+do_set_iax_bindport() {
+    echo "doing do_set_iax_bindport" >>$logfile
+
+    sed -i -e "/^bindport\s*=\s*$CURRENT_BINDPORT/ s/$CURRENT_BINDPORT/$NEW_BINDPORT/"	$CONFIG_DIR/iax.conf
+
+    update_file_permissions $CONFIG_DIR/iax.conf
+
+    AST_RESTART=1
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_update_node_number() {
+    echo "doing do_update_node_number" >>$logfile
+
+    while true; do
+	calc_wt_size
+
+	ANSWER=$(whiptail						\
+		    --title "$TITLE"					\
+		    --inputbox "The current node number is $CURRENT_NODE.\n\nEnter new node number :"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH			\
+		    "$CURRENT_NODE"					\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9]\+$
+	if [[ $ANSWER =~ $re ]]; then
+	    break
+	fi
+
 	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    elif [[ $ANSWER != $CURRENT_NODE ]]; then
-	NEW_NODE=$ANSWER
-	do_node_rename
-	CURRENT_NODE=$NEW_NODE
+    done
+
+    if [[ $ANSWER == $CURRENT_NODE ]]; then
+	return
     fi
+
+    NEW_NODE=$ANSWER
+    do_node_rename
+    CURRENT_NODE=$NEW_NODE
 }
 
 do_node_rename() {
@@ -373,25 +440,35 @@ do_update_node_password() {
 	return
     fi
 
-    ANSWER=$(whiptail											\
-		--title "$TITLE"									\
-		--inputbox "Enter the password for node $NEW_NODE :"					\
-		$MSGBOX_HEIGHT $MSGBOX_WIDTH								\
-		"$CURRENT_PASSWD"									\
-		3>&1 1>&2 2>&3)
-    if [[ $? -ne 0 ]]; then
-	return
-    fi
+    while true; do
+	calc_wt_size
 
-    re=^[0-9a-zA-Z_-]{6,}$
-    if ! [[ $ANSWER =~ $re ]]; then
+	ANSWER=$(whiptail										\
+		    --title "$TITLE"									\
+		    --inputbox "Enter the password for node $NEW_NODE :"				\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH							\
+		    "$CURRENT_PASSWD"									\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9a-zA-Z_-]{6,}$
+	if [[ $ANSWER =~ $re ]]; then
+	    break
+	fi
+
 	whiptail											\
 	    --msgbox "The node password may only contain letters, numbers, underscore and dash. It must be 6 or more characters in length."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    elif [[ "$ANSWER" != "$CURRENT_PASSWD" ]]; then
-	NEW_PASSWD=$ANSWER
-	do_node_set_password
+    done
+
+    if [[ "$ANSWER" == "$CURRENT_PASSWD" ]]; then
+	return
     fi
+
+    NEW_PASSWD=$ANSWER
+    do_node_set_password
 }
 
 do_node_set_password() {
@@ -467,25 +544,35 @@ do_update_ami_secret() {
 
     get_ami_settings
 
-    ANSWER=$(whiptail								\
-		--title "$TITLE"						\
-		--inputbox "Enter the AMI secret for Allmon, Supermon, etc :"	\
-		$MSGBOX_HEIGHT $MSGBOX_WIDTH					\
-		"$CURRENT_AMI_SECRET"						\
-		3>&1 1>&2 2>&3)
-    if [[ $? -ne 0 ]]; then
-	return
-    fi
+    while true; do
+	calc_wt_size
 
-    re=^[0-9a-zA-Z_-]{12,}$
-    if ! [[ $ANSWER =~ $re ]]; then
+	ANSWER=$(whiptail								\
+		    --title "$TITLE"							\
+		    --inputbox "Enter the AMI secret for Allmon, Supermon, etc :"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH					\
+		    "$CURRENT_AMI_SECRET"						\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return
+	fi
+
+	re=^[0-9a-zA-Z_-]{12,}$
+	if [[ $ANSWER =~ $re ]]; then
+	    break
+	fi
+
 	whiptail								\
 	    --msgbox "The AMI secret may only contain letters, numbers, underscore and dash. It must be 12 or more characters in length."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    elif [[ $ANSWER != $CURRENT_AMI_SECRET ]]; then
-	NEW_AMI_SECRET=$ANSWER
-	do_set_ami_secret
+    done
+
+    if [[ $ANSWER == $CURRENT_AMI_SECRET ]]; then
+	return
     fi
+
+    NEW_AMI_SECRET=$ANSWER
+    do_set_ami_secret
 }
 
 do_set_ami_secret() {
@@ -627,7 +714,7 @@ do_node_set_voter() {
 }
 
 do_node_set_pseudo() {
-    echo "doing do_set_pesudo" >>$logfile
+    echo "doing do_set_pseudo" >>$logfile
 
     # Load module
     do_noload_chan_modules
@@ -782,11 +869,11 @@ do_limit_nodes_add() {
 	fi
 
 	re=^[0-9]\+$
-	if ! [[ $ANSWER =~ $re ]]; then
-	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	else
+	if [[ $ANSWER =~ $re ]]; then
 	    break
 	fi
+
+	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     case "$ACTION" in
@@ -819,12 +906,12 @@ do_limit_nodes_remove() {
 	fi
 
 	re=^[0-9]\+$
-	if ! [[ $ANSWER =~ $re ]]; then
-	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	else
+	if [[ $ANSWER =~ $re ]]; then
 	    LIMIT_NODE=$ANSWER
 	    break
 	fi
+
+	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     case "$ACTION" in
@@ -1312,6 +1399,8 @@ Changes will go into effect once Asterisk is restarted with menu item "2".
 
 Menu item "3" allows you to change the Asterisk Management Interface (AMI) password.  The AMI password is used to update the configuration.  AMI is also allows other web applications (e.g. Allmon, Supermon, etc) to monitor and control your node from a browser.
 
+Menu item "4" allows you to change the Asterisk server's IAX port.  This UDP port is used by other nodes to connect to your server.  The default port is 4569.
+
 If this is a new setup, you should do all of item "1" and then do menu item "2"". That should be all that is needed to get your node up and running.
 
 For help see https://community.allstarlink.org
@@ -1344,6 +1433,7 @@ do_main_menu() {
 		    "1" "AllStar Node Setup Menu"			\
 		    "2" "Restart Asterisk         $NEED_RESTART"	\
 		    "3" "Update Asterisk AMI password"			\
+		    "4" "Update Asterisk IAX port"			\
 		    "B" "Backup and Restore Menu"			\
 		    "I" "Main Menu Instructions"			\
 		    3>&1 1>&2 2>&3)
@@ -1366,6 +1456,8 @@ do_main_menu() {
 		clear
 		;;
 	    3)	do_update_ami_secret
+		;;
+	    4)	do_update_iax_bindport
 		;;
 	    B)	do_backup_restore_menu
 		;;
