@@ -486,7 +486,16 @@ do_node_set_password() {
 	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_PASSWD/$NEW_PASSWD/"	$CONFIG_DIR/rpt_http_registrations.conf
 
     # Update "save-node" configuration
-    sed -i -e "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWD/"		$CONFIG_DIR/savenode.conf
+    egrep --quiet "^NODE=$CURRENT_NODE$" /etc/asterisk/savenode.conf
+    if [ $? -eq 0 ]; then
+	#
+	# if we are updating the node referenced in the "save-node" configuration
+	# then we also need to update here (and mark as enabled).
+	#
+	sed -i									\
+	    -e "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWD/"		\
+	    -e "/^ENABLE\s*=/   s/ENABLE\s*=.*/ENABLE=1/"			$CONFIG_DIR/savenode.conf
+    fi
 
     update_file_permissions $CONFIG_DIR/rpt_http_registrations.conf $CONFIG_DIR/savenode.conf
 
@@ -1485,8 +1494,6 @@ do_exit() {
     else
 	exit 0
     fi
-
-    return	// back to do_main_menu
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
