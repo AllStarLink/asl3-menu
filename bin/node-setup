@@ -843,7 +843,7 @@ get_node_settings () {
     rm $AWK_TMP
 
     # ... and pick up the node password too!
-    CURRENT_PASSWD=$(grep "^register.*=>\s*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
+    CURRENT_PASSWD=$(grep "^register.*=>*\s*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
 	| sed 's/.*:\(.*\)@.*/\1/')
     if [[ -z $CURRENT_PASSWD ]]; then
 	CURRENT_PASSWD='Not Set'
