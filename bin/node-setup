@@ -649,6 +649,51 @@ do_load_chan_module() {
     sed -i -e "/^noload.\+${MODULE}/ s/noload/load/"				$CONFIG_DIR/modules.conf
 }
 
+do_load_chan_modules() {
+    # load all [app_rpt] channel modules referenced in the configuration
+
+    SAVE_NODE=$CURRENT_NODE
+
+    # get node list
+    nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
+    #echo "nodes = ${nodes[*]}"
+    #echo "    # = ${#nodes[@]}"
+
+    # build menu selection for the nodes
+    for i in ${!nodes[@]}; do
+	CURRENT_NODE="${nodes[$i]}"
+	get_node_settings
+	case "$CURRENT_INTERFACE_TYPE" in
+	    "SimpleUSB" )
+		do_load_chan_module "simpleusb"
+		;;
+	    "USBRadio" )
+		do_load_chan_module "usbradio"
+		;;
+	    "Voter" )
+		do_load_chan_module "voter"
+		;;
+	    "Pseudo" )
+		do_load_chan_module "dahdi"
+		;;
+	    "QuadRadio" )
+		do_load_chan_module "dahdi"
+		;;
+	    "USRP" )
+		do_load_chan_module "usrp"
+		;;
+	esac
+    done
+
+    CURRENT_NODE=$SAVE_NODE
+}
+
+do_update_chan_modules() {
+    # Update modules
+    do_noload_chan_modules
+    do_load_chan_modules
+}
+
 do_set_rxchannel() {
     # set a nodes rxchannel
     RXCHANNEL="$1"
@@ -673,12 +718,11 @@ do_node_set_simpleusb() {
 	return
     fi
 
-    # Load module
-    do_noload_chan_modules
-    do_load_chan_module "simpleusb"
-
     # Set [node] rxchannel
     do_set_rxchannel "SimpleUSB/${CURRENT_NODE}"
+
+    # Update modules
+    do_update_chan_modules
 
     # Add the [node] to the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
@@ -698,12 +742,11 @@ do_node_set_usbradio() {
 	return
     fi
 
-    # Load module
-    do_noload_chan_modules
-    do_load_chan_module "usbradio"
-
     # Set [node] rxchannel
     do_set_rxchannel "Radio/${CURRENT_NODE}"
+
+    # Update modules
+    do_update_chan_modules
 
     # Add the [node] to the USBRadio configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
@@ -723,12 +766,11 @@ do_node_set_voter() {
 	return
     fi
 
-    # Load module
-    do_noload_chan_modules
-    do_load_chan_module "voter"
-
     # Set [node] rxchannel
     do_set_rxchannel "Voter/${CURRENT_NODE}"
+
+    # Update modules
+    do_update_chan_modules
 
     # Add the [node] to the Voter configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/voter.conf
@@ -748,12 +790,11 @@ do_node_set_pseudo() {
 	return
     fi
 
-    # Load module
-    do_noload_chan_modules
-    do_load_chan_module "dahdi"
-
     # Set [node] rxchannel
     do_set_rxchannel "dahdi/pseudo"
+
+    # Update modules
+    do_update_chan_modules
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
@@ -768,12 +809,11 @@ do_node_set_quadradio() {
 	return
     fi
 
-    # Load module
-    do_noload_chan_modules
-    do_load_chan_module "dahdi"
-
     # Set [node] rxchannel
     do_set_rxchannel "Dahdi/1"
+
+    # Update modules
+    do_update_chan_modules
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
@@ -788,12 +828,11 @@ do_node_set_usrp() {
 	return
     fi
 
-    # Load module
-    do_noload_chan_modules
-    do_load_chan_module "usrp"
-
     # Set [node] rxchannel
     do_set_rxchannel "USRP/127.0.0.1:34001:32001"
+
+    # Update modules
+    do_update_chan_modules
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
@@ -1349,7 +1388,11 @@ register => ${CURRENT_NODE}:${CURRENT_PASSWORD}@register.allstarlink.org
 _END_OF_INPUT
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
 
+    # Update modules
+    do_update_chan_modules
+
     update_file_permissions			\
+	$CONFIG_DIR/modules.conf		\
 	$CONFIG_DIR/rpt.conf			\
 	$CONFIG_DIR/rpt_http_registrations.conf
 
@@ -1416,7 +1459,11 @@ do_node_remove() {
 	TEMPLATE_CATEGORY_REMOVE "${REM_NODE}"			$CONFIG_DIR/voter.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/voter.conf
 
+    # Update modules
+    do_update_chan_modules
+
     update_file_permissions			\
+	$CONFIG_DIR/modules.conf		\
 	$CONFIG_DIR/rpt.conf			\
 	$CONFIG_DIR/rpt_http_registrations.conf	\
 	$CONFIG_DIR/simpleusb.conf		\
