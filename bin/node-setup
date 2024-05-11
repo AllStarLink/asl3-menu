@@ -614,8 +614,7 @@ do_update_node_interface() {
 		"2" "USBRadio     : CM1xx USB Cards with DSP (URIx or RA-40)"	\
 		"3" "RTCM         : Radio Thin Client or Voter Boards"		\
 		"4" "Dahdi/pseudo : No radio interface or HUB node"		\
-		"5" "PCI Quad Radio Card"					\
-		"6" "USRP"							\
+		"5" "USRP"							\
 		3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
 	return
@@ -626,8 +625,7 @@ do_update_node_interface() {
 	2) do_node_set_usbradio		;;
 	3) do_node_set_voter		;;
 	4) do_node_set_pseudo		;;
-	5) do_node_set_quadradio	;;
-	6) do_node_set_usrp		;;
+	5) do_node_set_usrp		;;
 	*) whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH 1 ;;
     esac
 }
@@ -674,9 +672,6 @@ do_load_chan_modules() {
 		do_load_chan_module "voter"
 		;;
 	    "Pseudo" )
-		do_load_chan_module "dahdi"
-		;;
-	    "QuadRadio" )
 		do_load_chan_module "dahdi"
 		;;
 	    "USRP" )
@@ -802,25 +797,6 @@ do_node_set_pseudo() {
     AST_RESTART=1
 }
 
-do_node_set_quadradio() {
-    echo "doing do_set_quad" >>$logfile
-
-    if [ $CURRENT_INTERFACE_TYPE == "QuadRadio" ]; then
-	return
-    fi
-
-    # Set [node] rxchannel
-    do_set_rxchannel "Dahdi/1"
-
-    # Update modules
-    do_update_chan_modules
-
-    update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
-
-    AST_RECONFIG=1
-    AST_RESTART=1
-}
-
 do_node_set_usrp() {
     echo "doing do_node_set_usrp" >>$logfile
 
@@ -901,10 +877,6 @@ get_node_settings () {
 		    dahdi/pseudo )
 			CURRENT_INTERFACE="No radio interface or HUB node"
 			CURRENT_INTERFACE_TYPE="Pseudo"
-			;;
-		    Dahdi/1 )
-			CURRENT_INTERFACE="PCI Quad Radio Card"
-			CURRENT_INTERFACE_TYPE="QuadRadio"
 			;;
 		    USRP/* )
 			CURRENT_INTERFACE="USRP"
