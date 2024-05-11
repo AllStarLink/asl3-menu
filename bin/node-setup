@@ -7,8 +7,12 @@
 # Major rework by WD6AWP April 2021
 # ASL3 rework/updates by WA3WCO Jan/Feb 2024
 
+AST_RECONFIG=0
 AST_RESTART=0
 CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
+
+ASTERISK=/usr/sbin/asterisk
+ASTRES=/usr/bin/astres.sh
 
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
@@ -172,7 +176,7 @@ do_update_node_callsign() {
 	fi
 
 	whiptail	\
-    	    --msgbox "A call sign may only uppercase letters and numbers. The call must be 3 or more characters in length."	\
+	    --msgbox "A call sign may only uppercase letters and numbers. The call must be 3 or more characters in length."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
@@ -399,7 +403,7 @@ do_node_rename() {
 	$CONFIG_DIR/voter.conf
 
     # Update allowlist/denylist
-    ALLOW_BLOCK_LIST=( `asterisk -r -x "database show %list/${CURRENT_NODE}/%"	\
+    ALLOW_BLOCK_LIST=( `$ASTERISK -r -x "database show %list/${CURRENT_NODE}/%"		\
 			| awk '/ results found/ { next; }				\
 			       { print $1; next; }					\
 			      '								\
@@ -410,18 +414,18 @@ do_node_rename() {
 	    node=$(echo $e | awk -F/ '{ print $4 }')
 	    case "$e" in
 		/allowlist/${CURRENT_NODE}/* )
-		    asterisk -r -x "database put allowlist/$NEW_NODE $node \"allow node $node to connect to node $NEW_NODE\""
+		    $ASTERISK -r -x "database put allowlist/$NEW_NODE $node \"allow node $node to connect to node $NEW_NODE\""
 		    ;;
 		/denylist/${CURRENT_NODE}/*  )
-		    asterisk -r -x "database put denylist/$NEW_NODE  $node \"block node $node from connecting to node $NEW_NODE\""
+		    $ASTERISK -r -x "database put denylist/$NEW_NODE  $node \"block node $node from connecting to node $NEW_NODE\""
 		    ;;
 		* )
 		    echo "Unexpected per-node database value (\"$e\")"
 		    ;;
 	    esac
 	done
-	asterisk -r -x "database deltree allowlist $CURRENT_NODE"
-	asterisk -r -x "database deltree denylist $CURRENT_NODE"
+	$ASTERISK -r -x "database deltree allowlist $CURRENT_NODE"
+	$ASTERISK -r -x "database deltree denylist $CURRENT_NODE"
     fi
 
     AST_RESTART=1
@@ -665,6 +669,10 @@ rxchannel = $RXCHANNEL
 do_node_set_simpleusb() {
     echo "doing do_node_set_simpleusb" >>$logfile
 
+    if [ $CURRENT_INTERFACE_TYPE == "SimpleUSB" ]; then
+	return
+    fi
+
     # Load module
     do_noload_chan_modules
     do_load_chan_module "simpleusb"
@@ -679,11 +687,16 @@ do_node_set_simpleusb() {
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/simpleusb.conf
 
+    AST_RECONFIG=1
     AST_RESTART=1
 }
 
 do_node_set_usbradio() {
     echo "doing do_node_set_usbradio" >>$logfile
+
+    if [ $CURRENT_INTERFACE_TYPE == "USBRadio" ]; then
+	return
+    fi
 
     # Load module
     do_noload_chan_modules
@@ -699,11 +712,16 @@ do_node_set_usbradio() {
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/usbradio.conf
 
+    AST_RECONFIG=1
     AST_RESTART=1
 }
 
 do_node_set_voter() {
     echo "doing do_node_set_voter" >>$logfile
+
+    if [ $CURRENT_INTERFACE_TYPE == "Voter" ]; then
+	return
+    fi
 
     # Load module
     do_noload_chan_modules
@@ -719,11 +737,16 @@ do_node_set_voter() {
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/voter.conf
 
+    AST_RECONFIG=1
     AST_RESTART=1
 }
 
 do_node_set_pseudo() {
     echo "doing do_set_pseudo" >>$logfile
+
+    if [ $CURRENT_INTERFACE_TYPE == "Pseudo" ]; then
+	return
+    fi
 
     # Load module
     do_noload_chan_modules
@@ -734,11 +757,16 @@ do_node_set_pseudo() {
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
+    AST_RECONFIG=1
     AST_RESTART=1
 }
 
 do_node_set_quadradio() {
     echo "doing do_set_quad" >>$logfile
+
+    if [ $CURRENT_INTERFACE_TYPE == "QuadRadio" ]; then
+	return
+    fi
 
     # Load module
     do_noload_chan_modules
@@ -749,11 +777,16 @@ do_node_set_quadradio() {
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
+    AST_RECONFIG=1
     AST_RESTART=1
 }
 
 do_node_set_usrp() {
     echo "doing do_node_set_usrp" >>$logfile
+
+    if [ $CURRENT_INTERFACE_TYPE == "USRP" ]; then
+	return
+    fi
 
     # Load module
     do_noload_chan_modules
@@ -764,6 +797,7 @@ do_node_set_usrp() {
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf
 
+    AST_RECONFIG=1
     AST_RESTART=1
 }
 
@@ -783,6 +817,7 @@ get_node_settings () {
     CURRENT_CALLSIGN=""
     CURRENT_DUPLEX=""
     CURRENT_INTERFACE=""
+    CURRENT_INTERFACE_TYPE=""
     CURRENT_PASSWORD=""
     CURRENT_STATPOST="No"
 
@@ -814,21 +849,27 @@ get_node_settings () {
 		case "$RXCHANNEL" in
 		    SimpleUSB/* )
 			CURRENT_INTERFACE="SimpleUSB"
+			CURRENT_INTERFACE_TYPE="SimpleUSB"
 			;;
 		    Radio/* )
 			CURRENT_INTERFACE="USBRadio"
+			CURRENT_INTERFACE_TYPE="USBRadio"
 			;;
 		    Voter/* )
 			CURRENT_INTERFACE="Voter"
+			CURRENT_INTERFACE_TYPE="Voter"
 			;;
 		    dahdi/pseudo )
 			CURRENT_INTERFACE="No radio interface or HUB node"
+			CURRENT_INTERFACE_TYPE="Pseudo"
 			;;
 		    Dahdi/1 )
 			CURRENT_INTERFACE="PCI Quad Radio Card"
+			CURRENT_INTERFACE_TYPE="QuadRadio"
 			;;
 		    USRP/* )
 			CURRENT_INTERFACE="USRP"
+			CURRENT_INTERFACE_TYPE="USRP"
 			;;
 		esac
 		;;
@@ -854,7 +895,7 @@ get_node_settings () {
 
 get_allow_block_settings () {
     CURRENT_NODE_ACCESS="Open"
-    COUNT=$(asterisk -r -x "database show %list/${CURRENT_NODE}/%" | awk '/ results found/ { print $1 }')
+    COUNT=$($ASTERISK -r -x "database show %list/${CURRENT_NODE}/%" | awk '/ results found/ { print $1 }')
     if [[ $COUNT -ne 0 ]]; then
 	CURRENT_NODE_ACCESS="Restricted"
     fi
@@ -887,10 +928,10 @@ do_limit_nodes_add() {
 
     case "$ACTION" in
 	"allow" )
-	    asterisk -r -x "database put allowlist/$CURRENT_NODE $ANSWER \"allow node $ANSWER to connect to node $CURRENT_NODE\""
+	    $ASTERISK -r -x "database put allowlist/$CURRENT_NODE $ANSWER \"allow node $ANSWER to connect to node $CURRENT_NODE\""
 	    ;;
 	"block" )
-	    asterisk -r -x "database put denylist/$CURRENT_NODE  $ANSWER \"block node $ANSWER from connecting to node $CURRENT_NODE\""
+	    $ASTERISK -r -x "database put denylist/$CURRENT_NODE  $ANSWER \"block node $ANSWER from connecting to node $CURRENT_NODE\""
 	    ;;
     esac
 
@@ -925,10 +966,10 @@ do_limit_nodes_remove() {
 
     case "$ACTION" in
 	"allow" )
-	    asterisk -r -x "database del allowlist/$CURRENT_NODE $LIMIT_NODE"
+	    $ASTERISK -r -x "database del allowlist/$CURRENT_NODE $LIMIT_NODE"
 	    ;;
 	"block" )
-	    asterisk -r -x "database del denylist/$CURRENT_NODE $LIMIT_NODE"
+	    $ASTERISK -r -x "database del denylist/$CURRENT_NODE $LIMIT_NODE"
 	    ;;
     esac
 
@@ -941,10 +982,10 @@ do_limit_nodes_remove_all() {
 
     case "$ACTION" in
 	"allow" )
-	    asterisk -r -x "database deltree allowlist $CURRENT_NODE"
+	    $ASTERISK -r -x "database deltree allowlist $CURRENT_NODE"
 	    ;;
 	"block" )
-	    asterisk -r -x "database deltree denylist $CURRENT_NODE"
+	    $ASTERISK -r -x "database deltree denylist $CURRENT_NODE"
 	    ;;
     esac
 
@@ -958,7 +999,7 @@ do_update_allow_block_lists() {
 	calc_wt_size
 
 	# get allow/block list
-	ALLOW_BLOCK_LIST=( `asterisk -r -x "database show %list/${CURRENT_NODE}/%"	\
+	ALLOW_BLOCK_LIST=( `$ASTERISK -r -x "database show %list/${CURRENT_NODE}/%"	\
 			   | awk '/ results found/ { next; }	\
 				  { print $1; next; }		\
 				 '				\
@@ -1093,27 +1134,80 @@ EOT
 do_interface_tune_cli() {
     echo "doing do_interface_tune_cli" >>$logfile
 
-    if [[ $CURRENT_INTERFACE == *"SimpleUSB"* ]]; then
-	clear
-	/usr/sbin/simpleusb-tune-menu
-	RC=$?
-	clear
-	if [[ $RC -ne 0 ]]; then
-	    whiptail --title "$TITLE" --msgbox "SimpleUSB tuning CLI did not launch. Try restarting Asterisk." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+    # check if tuning available for this interface
+    case "$CURRENT_INTERFACE_TYPE" in
+	"SimpleUSB" )
+	    ;;
+	"USBRadio" )
+	    ;;
+	"Pseudo" )
+	    whiptail										\
+		--title "$TITLE"								\
+		--msgbox "No tuning is needed for this node."					\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    return
+	    ;;
+	* )
+	    whiptail										\
+		--title "$TITLE"								\
+		--msgbox "Tuning \"$CURRENT_INTERFACE_TYPE\" is not supported. Use editor."	\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    return
+	    ;;
+    esac
+
+    # check if Asterisk needs to be restarted
+    if [ $AST_RECONFIG -eq 1 ]; then
+	whiptail											\
+	    --title "$TITLE"										\
+	    --yesno											\
+	    "Asterisk must be restarted before you can tune this interface.\n\nRestart Asterisk now?"	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $? -ne 0 ]; then #no
+	    return
 	fi
-    elif [[ $CURRENT_INTERFACE == *"Radio"* ]]; then
-	clear
-	/usr/sbin/radio-tune-menu
+
+	$ASTRES
 	RC=$?
-	clear
-	if [[ $RC -ne 0 ]]; then
-	    whiptail --title "$TITLE" --msgbox "USB Radio tuning CLI did not launch. Try restarting Asterisk." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $RC -ne 0 ]; then
+	    whiptail --msgbox "Asterisk restart failed (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    return
 	fi
-    elif [[ $CURRENT_INTERFACE == *"pseudo"* ]]; then
-	whiptail --title "$TITLE" --msgbox "No tuning is needed for this node." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    else
-	whiptail --title "$TITLE" --msgbox "$CURRENT_INTERFACE is not supported. Use editor." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+
+	AST_RESTART=0
+	AST_RECONFIG=0
+	sleep 2
     fi
+
+    # tune the interface
+    case "$CURRENT_INTERFACE_TYPE" in
+	"SimpleUSB" )
+	    clear
+	    /usr/sbin/simpleusb-tune-menu
+	    RC=$?
+	    clear
+	    if [[ $RC -ne 0 ]]; then
+		whiptail									\
+		    --title "$TITLE"								\
+		    --msgbox "SimpleUSB tuning CLI did not launch. Try restarting Asterisk."	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    fi
+	    ;;
+	"USBRadio" )
+	    clear
+	    /usr/sbin/radio-tune-menu
+	    RC=$?
+	    clear
+	    if [[ $RC -ne 0 ]]; then
+		whiptail									\
+		    --title "$TITLE"								\
+		    --msgbox "USB Radio tuning CLI did not launch. Try restarting Asterisk."	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    fi
+	    ;;
+	* )
+	    ;;
+    esac
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -1259,6 +1353,7 @@ _END_OF_INPUT
 	$CONFIG_DIR/rpt.conf			\
 	$CONFIG_DIR/rpt_http_registrations.conf
 
+    AST_RECONFIG=1
     AST_RESTART=1
 
     # ... and let's setup the new node too!
@@ -1454,15 +1549,15 @@ do_main_menu() {
 	case "$ANSWER" in
 	    1)	do_allstar_node_select_menu
 		;;
-	    2)	AST_RESTART=0
-		astres.sh
+	    2)	$ASTRES
 		RC=$?
 		if [ $RC -ne 0 ]; then
 		    whiptail --msgbox "Asterisk restart failed (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 		else
 		    whiptail --msgbox "Asterisk restart success." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+		    AST_RESTART=0
+		    AST_RECONFIG=0
 		fi
-		clear
 		;;
 	    3)	do_update_ami_secret
 		;;

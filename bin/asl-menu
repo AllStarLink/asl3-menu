@@ -109,7 +109,7 @@ do_finish() {
     fi
 
     if [ $AST_RESTART -eq 1 ]; then
-	whiptail --title "$TITLE" --yesno "Asterisk reload is required for changes to take effect.\n\nRestart Asterisk now?" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --title "$TITLE" --yesno "Asterisk must be restarted for your changes to take effect.\n\nRestart Asterisk now?" $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	if [ $? -eq 0 ]; then #yes
 	    $ASTRES
 	    whiptail --msgbox "Asterisk has been restarted." $MSGBOX_HEIGHT $MSGBOX_WIDTH
