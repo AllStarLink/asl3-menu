@@ -1,10 +1,18 @@
-asl3-menu (1.0-2) UNRELASED; urgency=medium
+asl3-menu (1.1-1) unstable; urgency=medium
+
+  * Support alternative IAX2 port (#19)
+  * Support node configuration saving (#20)
+  * Fix rpt_http_registrations.conf pattern 
+
+ -- Jason McCormick <jason@mfamily.org>  Fri, 10 May 2024 19:59:32 -0400
+
+asl3-menu (1.0-2) unstable; urgency=medium
 
   * Autobuilder
 
  -- Jason McCormick <jason@mfamily.org>  Fri, 03 May 2024 18:00:04 -0400
 
-asl3-menu (1.0-1) UNRELASED; urgency=medium
+asl3-menu (1.0-1) unstable; urgency=medium
 
   * Initial release.
 

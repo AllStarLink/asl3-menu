@@ -3,8 +3,8 @@
 #
 SRCNAME = asl3-menu
 PKGNAME = $(SRCNAME)
-RELVER = 1.0
-DEBVER = 2
+RELVER = 1.1
+DEBVER = 1
 RELPLAT ?= deb$(shell lsb_release -rs 2> /dev/null)
 
 BUILDABLES = bin # php-backend
