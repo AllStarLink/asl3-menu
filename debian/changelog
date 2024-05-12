@@ -1,7 +1,16 @@
+asl3-menu (1.2-1) unstable; urgency=medium
+
+  * If needed, prompt for Asterisk restart after interface type changes
+  * Enable the needed channel drivers for all of the configured nodes (#21)
+  * Remove menu support for PCI Quad Radio (#22)
+  * Ensure "bindport" changes are reflected in "rpt.conf" (#25)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Sun, 12 May 2024 11:47:51 -0400
+
 asl3-menu (1.1-1) unstable; urgency=medium
 
-  * Support alternative IAX2 port (#19)
-  * Support node configuration saving (#20)
+  * Support alternative IAX2 port (#14)
+  * Support node configuration saving (#16)
   * Fix rpt_http_registrations.conf pattern 
 
  -- Jason McCormick <jason@mfamily.org>  Fri, 10 May 2024 19:59:32 -0400

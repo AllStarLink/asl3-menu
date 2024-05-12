@@ -3,7 +3,7 @@
 #
 SRCNAME = asl3-menu
 PKGNAME = $(SRCNAME)
-RELVER = 1.1
+RELVER = 1.2
 DEBVER = 1
 RELPLAT ?= deb$(shell lsb_release -rs 2> /dev/null)
 
