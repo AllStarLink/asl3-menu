@@ -315,9 +315,35 @@ do_update_iax_bindport() {
 do_set_iax_bindport() {
     echo "doing do_set_iax_bindport" >>$logfile
 
+    # set server IAX bindport
     sed -i -e "/^bindport\s*=\s*$CURRENT_BINDPORT/ s/$CURRENT_BINDPORT/$NEW_BINDPORT/"	$CONFIG_DIR/iax.conf
 
-    update_file_permissions $CONFIG_DIR/iax.conf
+    # update node registrations
+
+    # get node list
+    nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
+    #echo "nodes = ${nodes[*]}"
+    #echo "    # = ${#nodes[@]}"
+
+    # update IAX port for all nodes
+    SAVE_NODE=$CURRENT_NODE
+    for i in ${!nodes[@]}; do
+	CURRENT_NODE="${nodes[$i]}"
+
+	TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
+	    # update the per-node
+	    sed -i					\
+		-E					\
+		-e "/^[0-9]+\s*=\s*radio@/		\
+			{				\
+			    s/:[0-9]+\//\//;		\
+			    s/\//:$NEW_BINDPORT\//	\
+			}"				$CONFIG_DIR/rpt.conf
+	TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
+    done
+    CURRENT_NODE=$SAVE_NODE
+
+    update_file_permissions $CONFIG_DIR/iax.conf $CONFIG_DIR/rpt.conf
 
     AST_RESTART=1
 }
@@ -657,7 +683,7 @@ do_load_chan_modules() {
     #echo "nodes = ${nodes[*]}"
     #echo "    # = ${#nodes[@]}"
 
-    # build menu selection for the nodes
+    # ensure each node's channel driver is loaded
     for i in ${!nodes[@]}; do
 	CURRENT_NODE="${nodes[$i]}"
 	get_node_settings
