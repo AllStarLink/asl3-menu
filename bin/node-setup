@@ -747,7 +747,7 @@ do_node_set_simpleusb() {
 
     # Add the [node] to the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
-	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/simpleusb.conf
+	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/simpleusb.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/simpleusb.conf
@@ -771,7 +771,7 @@ do_node_set_usbradio() {
 
     # Add the [node] to the USBRadio configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
-	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/usbradio.conf
+	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/usbradio.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/usbradio.conf
@@ -1430,7 +1430,7 @@ do_node_remove() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	# remove the per-node category
-	TEMPLATE_CATEGORY_REMOVE ${REM_NODE}			$CONFIG_DIR/rpt.conf
+	TEMPLATE_CATEGORY_REMOVE "${REM_NODE}"			$CONFIG_DIR/rpt.conf
 
 	# ... and update [nodes]
 	sed -i -e "/^\[nodes]/,/^\[/ { /^${REM_NODE}\s*=/d }"	$CONFIG_DIR/rpt.conf
