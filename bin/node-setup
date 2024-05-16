@@ -748,6 +748,22 @@ do_node_set_simpleusb() {
     # Add the [node] to the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/simpleusb.conf
+
+	# ... and add defaults for tune settings
+	sed	-i								\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/a\\
+\\
+;;;;; ASL3 Tune settings ;;;;;\\
+devstr =\\
+rxmixerset = 501\\
+txmixbset = 500\\
+txmixaset = 500
+"										$CONFIG_DIR/simpleusb.conf
+
     TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/simpleusb.conf
@@ -772,6 +788,26 @@ do_node_set_usbradio() {
     # Add the [node] to the USBRadio configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/usbradio.conf
+
+	# ... and add defaults for tune settings
+	sed	-i								\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/a\\
+\\
+;;;;; ASL3 Tune settings ;;;;;\\
+devstr =\\
+rxmixerset = 500\\
+txmixaset = 500\\
+txmixbset = 500\\
+rxvoiceadj = 0.5\\
+rxctcssadj = 0.5\\
+txctcssadj = 200\\
+rxsquelchadj = 500
+"										$CONFIG_DIR/usbradio.conf
+
     TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/usbradio.conf
