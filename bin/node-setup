@@ -795,6 +795,10 @@ do_node_set_usbradio() {
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxvoiceadj\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxctcssadj\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txctcssadj\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxsquelchadj\s*=/d; }"	\
 		-e "/^\[$CURRENT_NODE]/a\\
 \\
 ;;;;; ASL3 Tune settings ;;;;;\\
