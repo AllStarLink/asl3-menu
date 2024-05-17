@@ -14,6 +14,9 @@ CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
 ASTERISK=/usr/sbin/asterisk
 ASTRES=/usr/bin/astres.sh
 
+ALLMON3_INI="${DESTDIR}/etc/allmon3/allmon3.ini"
+ALLMON3_RESTART=0
+
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
 TITLE="AllStarLink 3.0.0"
@@ -142,6 +145,26 @@ TEMPLATE_CATEGORY_REMOVE() {
 	 p==1       { print; }
 	"				$AWK_TMP > "${F}"
     rm $AWK_TMP
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_astres() {
+    $ASTRES
+    RC=$?
+    if [ $RC -ne 0 ]; then
+	whiptail --msgbox "Asterisk restart failed (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return
+    fi
+
+    AST_RESTART=0
+    AST_RECONFIG=0
+
+    # check if Allmon3 also needs to be restarted
+    if [[ $ALLMON3_RESTART -eq 1 ]]; then
+	systemctl restart allmon3
+	ALLMON3_RESTART=0
+    fi
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -455,6 +478,14 @@ do_node_rename() {
     fi
 
     AST_RESTART=1
+
+    if [[ -f "${ALLMON3_INI}" ]]; then
+	grep -q "^\[${CURRENT_NODE}]"					"${ALLMON3_INI}"
+	if [[ $? -eq 0 ]]; then
+	    sed -i -e "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"	"${ALLMON3_INI}"
+	    ALLMON3_RESTART=1
+	fi
+    fi
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -1204,15 +1235,11 @@ do_interface_tune_cli() {
 	    return
 	fi
 
-	$ASTRES
-	RC=$?
-	if [ $RC -ne 0 ]; then
-	    whiptail --msgbox "Asterisk restart failed (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	do_astres
+	if [ $AST_RECONFIG -eq 1 ]; then
+	    # Asterisk restart failed, do not tune
 	    return
 	fi
-
-	AST_RESTART=0
-	AST_RECONFIG=0
 	sleep 2
     fi
 
@@ -1594,15 +1621,7 @@ do_main_menu() {
 	case "$ANSWER" in
 	    1)	do_allstar_node_select_menu
 		;;
-	    2)	$ASTRES
-		RC=$?
-		if [ $RC -ne 0 ]; then
-		    whiptail --msgbox "Asterisk restart failed (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-		else
-		    whiptail --msgbox "Asterisk restart success." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-		    AST_RESTART=0
-		    AST_RECONFIG=0
-		fi
+	    2)	do_astres
 		;;
 	    3)	do_update_ami_secret
 		;;
