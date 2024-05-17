@@ -454,6 +454,7 @@ do_node_rename() {
 	$ASTERISK -r -x "database deltree denylist $CURRENT_NODE"
     fi
 
+    AST_RECONFIG=1
     AST_RESTART=1
 }
 
@@ -749,20 +750,29 @@ do_node_set_simpleusb() {
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/simpleusb.conf
 
-	# ... and add defaults for tune settings
-	sed	-i								\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
+	awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
+	     /^\[/			{ p=0; next; }
+	     p==1 && /^devstr\\s*=/	{ d=1; exit; }
+					{ next; }
+	     END			{ exit d }
+            "									$CONFIG_DIR/simpleusb.conf
+        if [[ $? -eq 0 ]]; then
+	    # ... and add defaults for tune settings
+	    sed	-i									\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; ASL3 Tune settings.*/d; }"	\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"			\
 		-e "/^\[$CURRENT_NODE]/a\\
 \\
 ;;;;; ASL3 Tune settings ;;;;;\\
 devstr =\\
-rxmixerset = 501\\
+rxmixerset = 500\\
 txmixbset = 500\\
 txmixaset = 500
 "										$CONFIG_DIR/simpleusb.conf
+	fi
 
     TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
 
@@ -789,16 +799,24 @@ do_node_set_usbradio() {
     TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/usbradio.conf
 
-	# ... and add defaults for tune settings
-	sed	-i								\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxvoiceadj\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxctcssadj\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txctcssadj\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxsquelchadj\s*=/d; }"	\
+	awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
+	     /^\[/			{ p=0; next; }
+	     p==1 && /^devstr\\s*=/	{ d=1; exit; }
+					{ next; }
+	     END			{ exit d }
+	    "									$CONFIG_DIR/usbradio.conf
+        if [[ $? -eq 0 ]]; then
+	    # ... and add defaults for tune settings
+	    sed	-i									\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; ASL3 Tune settings.*/d; }"	\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxvoiceadj\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxctcssadj\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txctcssadj\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxsquelchadj\s*=/d; }"		\
 		-e "/^\[$CURRENT_NODE]/a\\
 \\
 ;;;;; ASL3 Tune settings ;;;;;\\
@@ -811,6 +829,7 @@ rxctcssadj = 0.5\\
 txctcssadj = 200\\
 rxsquelchadj = 500
 "										$CONFIG_DIR/usbradio.conf
+	fi
 
     TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
 
