@@ -85,6 +85,12 @@ do_load_asl_settings()
 	return 1
     fi
 
+    # check if backups are support for this node
+    if [[ $NODE -lt 2000 || $NODE =~ ^1.* ]]; then
+	whiptail --msgbox "Backups are not supported for node numbers less than \"2000\" or any node number that starts with \"1\"." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return 1
+    fi
+
     return 0
 }
 
