@@ -22,8 +22,8 @@ MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
 TITLE="AllStarLink 3.0.0"
 
-#logfile=/dev/null
-logfile=/tmp/asl-menu.log
+ASL_DEBUG=""
+logfile=/dev/null
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
@@ -137,7 +137,7 @@ do_finish() {
 do_node_setup() {
     echo "do_node_setup" >>$logfile
 
-    /usr/bin/node-setup --sub-menu
+    /usr/bin/node-setup --sub-menu $ASL_DEBUG
 }
 
 do_asterisk_cli() {
@@ -531,7 +531,7 @@ do_sys_diags_menu() {
 do_backup_restore_menu() {
     echo "do_backup_restore_menu" >>$logfile
 
-    /usr/bin/asl-backup-menu
+    /usr/bin/asl-backup-menu $ASL_DEBUG
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -567,6 +567,20 @@ do_logout_menu() {
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+	"--debug" )
+	    ASL_DEBUG="--debug"
+	    logfile=/tmp/asl-menu.log
+	    shift
+	    ;;
+
+	* )
+	    echo "Usage: $0 [ --debug ]"
+	    exit 1
+    esac
+done
 
 /usr/bin/clear
 check_if_root

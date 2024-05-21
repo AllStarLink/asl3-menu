@@ -20,8 +20,8 @@ TITLE="AllStarLink 3.0.0"
 
 SUB_MENU=0
 
-#logfile=/dev/null
-logfile=/tmp/node-setup.log
+ASL_DEBUG=""
+logfile=/dev/null
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
@@ -149,7 +149,7 @@ TEMPLATE_CATEGORY_REMOVE() {
 do_backup_restore_menu() {
     echo "do_backup_restore_menu" >>$logfile
 
-    /usr/bin/asl-backup-menu
+    /usr/bin/asl-backup-menu $ASL_DEBUG
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -1640,13 +1640,19 @@ do_exit() {
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+	"--debug" )
+	    ASL_DEBUG="--debug"
+	    logfile=/tmp/node-setup.log
+	    shift
+	    ;;
+
 	"--sub-menu" )
 	    SUB_MENU=1
 	    shift
 	    ;;
 
 	* )
-	    echo "Usage: $0 [ --sub-menu ]"
+	    echo "Usage: $0 [ --debug ] [ --sub-menu ]"
 	    exit 1
     esac
 done
