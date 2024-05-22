@@ -118,15 +118,15 @@ do_finish() {
 	fi
     fi
 
-	X_START=$(date %s)
+	X_START=$(date +%s)
     whiptail			\
-	--title "$TITLE"	\
-	--yesno "If you exit you may type \"asl-menu\" to relaunch this menu.\n\nExit ASL Main Menu now?"	\
+		--title "$TITLE"	\
+		--yesno "If you exit you may type \"asl-menu\" to relaunch this menu.\n\nExit ASL Main Menu now?"	\
 	$MSGBOX_HEIGHT $MSGBOX_WIDTH
     if [ $? -eq 0 ] || [ $? -eq 255 ]; then
 		exit
     fi
-	X_STOP=$(date %s)
+	X_STOP=$(date +%s)
 	if [ $X_START -eq $X_STOP ]; then
        echo "exit was < 1 second so killing b/c likely parent console went away" >> $logfile
        exit 1
