@@ -123,6 +123,7 @@ TEMPLATE_CATEGORY_ADD() {
     #
     # ... and add the per-node category
     sed -i -e "/^\[asl-menu]/i\\
+\\
 [${C}]${T}\\
 "						"${F}"
 }
@@ -454,6 +455,7 @@ do_node_rename() {
 	$ASTERISK -r -x "database deltree denylist $CURRENT_NODE"
     fi
 
+    AST_RECONFIG=1
     AST_RESTART=1
 }
 
@@ -462,7 +464,7 @@ do_node_rename() {
 do_update_node_password() {
     echo "doing do_update_node_password" >>$logfile
 
-    if [[ "$CURRENT_PASSWD" == "Not Set" ]]; then
+    if [[ "$CURRENT_PASSWD" == "Not Set" && $CURRENT_CALLSIGN == "NOTSET" ]]; then
 	whiptail											\
 	    --title "$TITLE"										\
 	    --msgbox "This looks like a new node. Change node number before setting the password."	\
@@ -747,7 +749,80 @@ do_node_set_simpleusb() {
 
     # Add the [node] to the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
-	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/simpleusb.conf
+
+	grep -q "^\[node-main]"								$CONFIG_DIR/simpleusb.conf
+	if [[ $? -eq 0 ]]; then
+	    # if we are using templates
+
+	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/simpleusb.conf
+
+	    awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
+		 /^\[/			{ p=0; next; }
+		 p==1 && /^devstr\\s*=/	{ d=1; exit; }
+					{ next; }
+		 END			{ exit d }
+		"									$CONFIG_DIR/simpleusb.conf
+	    if [[ $? -eq 0 ]]; then
+		# ... and add defaults for tune settings
+		sed -i									\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; .*Tune settings.*/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/a\\
+\\
+;;;;; Tune settings ;;;;;\\
+devstr =\\
+rxmixerset = 500\\
+txmixbset = 500\\
+txmixaset = 500
+"											$CONFIG_DIR/simpleusb.conf
+	    fi
+	else
+	    # if we are not using templates
+
+	    TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/simpleusb.conf
+
+	awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
+	     /^\[/			{ p=0; next; }
+	     p==1 && /^devstr\\s*=/	{ d=1; exit; }
+					{ next; }
+	     END			{ exit d }
+            "									$CONFIG_DIR/simpleusb.conf
+        if [[ $? -eq 0 ]]; then
+	    # ... and add defaults for tune settings
+	    sed	-i									\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; .*Tune settings.*/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/a\\
+\\
+eeprom = 0\\
+hdwtype = 0\\
+rxboost = no\\
+carrierfrom = usbinvert\\
+ctcssfrom = usbinvert\\
+deemphasis = no\\
+plfilter = yes\\
+rxondelay = 0\\
+txoffdelay = 0\\
+txmixa = voice\\
+txmixb = no\\
+invertptt = no\\
+preemphasis = no\\
+\\
+;;;;; Tune settings ;;;;;\\
+devstr =\\
+rxmixerset = 500\\
+txmixbset = 500\\
+txmixaset = 500
+"										$CONFIG_DIR/simpleusb.conf
+	    fi
+	fi
+
     TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/simpleusb.conf
@@ -771,7 +846,111 @@ do_node_set_usbradio() {
 
     # Add the [node] to the USBRadio configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
-	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/usbradio.conf
+
+	grep -q "^\[node-main]"								$CONFIG_DIR/usbradio.conf
+	if [[ $? -eq 0 ]]; then
+	    # if we are using templates
+
+	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/usbradio.conf
+
+	    awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
+		 /^\[/			{ p=0; next; }
+		 p==1 && /^devstr\\s*=/	{ d=1; exit; }
+					{ next; }
+		 END			{ exit d }
+		"									$CONFIG_DIR/usbradio.conf
+            if [[ $? -eq 0 ]]; then
+		# ... and add defaults for tune settings
+		sed -i									\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; .*Tune settings.*/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxvoiceadj\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxctcssadj\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txctcssadj\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxsquelchadj\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/a\\
+\\
+;;;;; Tune settings ;;;;;\\
+devstr =\\
+rxmixerset = 500\\
+txmixaset = 500\\
+txmixbset = 500\\
+rxvoiceadj = 0.5\\
+rxctcssadj = 0.5\\
+txctcssadj = 200\\
+rxsquelchadj = 500
+"										$CONFIG_DIR/usbradio.conf
+	    fi
+	else
+	    # if we are not using templates
+
+	    TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""			$CONFIG_DIR/usbradio.conf
+
+	awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
+	     /^\[/			{ p=0; next; }
+	     p==1 && /^devstr\\s*=/	{ d=1; exit; }
+					{ next; }
+	     END			{ exit d }
+	    "									$CONFIG_DIR/usbradio.conf
+        if [[ $? -eq 0 ]]; then
+	    # ... and add defaults for tune settings
+	    sed	-i									\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; .*Tune settings.*/d; }"		\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxvoiceadj\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxctcssadj\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txctcssadj\s*=/d; }"			\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxsquelchadj\s*=/d; }"		\
+		-e "/^\[$CURRENT_NODE]/a\\
+\\
+eeprom = 0\\
+hdwtype = 0\\
+rxboost = yes\\
+rxctcssrelax = 1\\
+rxsqhyst = 3000\\
+txctcssdefault = 100.0\\
+rxctcssfreqs = 100.0,91.5\\
+txctcssfreqs = 100.0,91.5\\
+rxctcssoverride = no\\
+carrierfrom = dsp\\
+ctcssfrom = dsp\\
+rxdemod = flat\\
+rxsquelchdelay = 30\\
+rxondelay = 0\\
+txoffdelay = 0\\
+txboost = no\\
+txprelim = yes\\
+txlimonly = yes\\
+txtoctype = notone\\
+txmixa = composite\\
+txmixb = no\\
+rxlpf = 0\\
+rxhpf = 0\\
+txlpf = 0\\
+txhpf = 0\\
+invertptt = yes\\
+duplex = 0\\
+duplex3 = 0\\
+\\
+;;;;; Tune settings ;;;;;\\
+devstr =\\
+rxmixerset = 500\\
+txmixaset = 500\\
+txmixbset = 500\\
+rxvoiceadj = 0.5\\
+rxctcssadj = 0.5\\
+txctcssadj = 200\\
+rxsquelchadj = 500
+"										$CONFIG_DIR/usbradio.conf
+	    fi
+	fi
+
     TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/usbradio.conf
@@ -795,7 +974,23 @@ do_node_set_voter() {
 
     # Add the [node] to the Voter configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/voter.conf
+
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/voter.conf
+
+	# ... and add sample voter settings
+	sed -i									\
+	    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^;NORTH\s*=/d; }"			\
+	    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^;SOUTH\s*=/d; }"			\
+	    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^;EAST\s*=/d; }"			\
+	    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^;WEST\s*=/d; }"			\
+	    -e "/^\[$CURRENT_NODE]/a\\
+\\
+;NORTH = password_1,transmit\\
+;SOUTH = Password_2,transmit\\
+;EAST = password_3,nodeemp\\
+;WEST = Password_4,transmit,noplfilter
+"										$CONFIG_DIR/voter.conf
+
     TEMPLATE_EDIT_END	$CONFIG_DIR/voter.conf
 
     update_file_permissions $CONFIG_DIR/modules.conf $CONFIG_DIR/rpt.conf $CONFIG_DIR/voter.conf
@@ -1430,7 +1625,7 @@ do_node_remove() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	# remove the per-node category
-	TEMPLATE_CATEGORY_REMOVE ${REM_NODE}			$CONFIG_DIR/rpt.conf
+	TEMPLATE_CATEGORY_REMOVE "${REM_NODE}"			$CONFIG_DIR/rpt.conf
 
 	# ... and update [nodes]
 	sed -i -e "/^\[nodes]/,/^\[/ { /^${REM_NODE}\s*=/d }"	$CONFIG_DIR/rpt.conf
@@ -1485,8 +1680,14 @@ do_allstar_node_select_menu() {
 	if [ ${#nodes[@]} -eq 1 -a "${nodes[0]}" = "1999" ]; then
 	    # if we only have the [template] node
 	    CURRENT_NODE="${nodes[0]}"
+
+	    # check if the [template] node has been updated
+	    get_node_settings
+	    if [[ "$CURRENT_PASSWD" == "Not Set" && $CURRENT_CALLSIGN == "NOTSET" ]]; then
+		# if not [yet] modified
 	    do_allstar_node_setup_menu
 	    return
+	fi
 	fi
 
 	# build menu selection for the nodes
