@@ -7,23 +7,20 @@
 # Major rework by WD6AWP April 2021
 # ASL3 rework/updates by WA3WCO Jan/Feb 2024
 
+ALLMON3_INI="${DESTDIR}/etc/allmon3/allmon3.ini"
+ALLMON3_RESTART=0
+ASL_DEBUG=""
+ASL_VERSION=$(asl-show-version --asl)
+ASTERISK=/usr/sbin/asterisk
+ASTRES=/usr/bin/astres.sh
 AST_RECONFIG=0
 AST_RESTART=0
 CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
-
-ASTERISK=/usr/sbin/asterisk
-ASTRES=/usr/bin/astres.sh
-
-ALLMON3_INI="${DESTDIR}/etc/allmon3/allmon3.ini"
-ALLMON3_RESTART=0
-
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
-TITLE="AllStarLink 3.0.0"
-
 SUB_MENU=0
+TITLE="AllStarLink $ASL_VERSION"
 
-ASL_DEBUG=""
 logfile=/dev/null
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====

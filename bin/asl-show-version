@@ -1,0 +1,188 @@
+#!/bin/bash
+
+ASTERISK=/usr/sbin/asterisk
+ASTERISK_CTL=/var/run/asterisk/asterisk.ctl
+
+if [[ ! -x $ASTERISK ]]; then
+    echo "Asterisk not installed!"
+    exit 1
+fi
+
+if [[ $EUID != 0 && ! -w $ASTERISK_CTL ]]; then
+    echo "This script must be run as root or with sudo"
+    exit 1
+fi
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+calc_wt_size() {
+    # Bash knows the terminal size
+    #   The number of columns are $COLUMNS
+    #   The number of lines are $LINES
+
+    if [[ $LINES -lt 22 ]]; then
+	echo "Terminal size must be at least 22 lines."
+	exit 1
+    fi
+    if [[ $COLUMNS -lt 60 ]]; then
+	echo "Terminal size must be at least 60 columns."
+	exit 1
+    fi
+
+    WT_HEIGHT=22
+
+    # Leave full width up to 100 columns
+    WT_WIDTH=$COLUMNS
+    if [[ $COLUMNS -gt 100 ]]; then
+	WT_WIDTH=100
+    fi
+
+    WT_MENU_HEIGHT=$(($WT_HEIGHT - 8))
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+get_asl_version()
+{
+    # get the AllStarLink [app_rpt] version
+    ASL_VER="$($ASTERISK -r -x "rpt show version")"
+    ASL_VER="${ASL_VER#app_rpt version: }"
+}
+
+get_asl_package_info()
+{
+    ASL_PACKAGES=""
+    DEB_PACKAGES=""
+
+    if [ -e /etc/debian_version ]; then
+	# get debian packages
+
+	DEB_PACKAGES=$(
+	    dpkg-query			\
+		--showformat='${db:Status-Abbrev};  ${binary:Package;-20}  ${Version}\n'	\
+		--show			\
+		asl3\*			\
+		allmon3\*		\
+		dahdi\* 		\
+	    | grep -e "^ii"		\
+	    | sed -e 's/^.*;//'		\
+	    | sort
+	)
+    fi
+
+    if [[ -z "$DEB_PACKAGES" ]]; then
+	return
+    fi
+
+    read -r -d '' ASL_PACKAGES << EOT
+Installed ASL packages :
+
+  Package               Version
+  ====================  ==============================
+$DEB_PACKAGES
+EOT
+
+}
+
+get_full_info()
+{
+    # get OS name
+    OS_PRETTY_NAME=$(grep '^PRETTY_NAME\s*=\s*'	/etc/os-release	\
+        | sed 's/^PRETTY_NAME\s*=\s*"//;s/[\s"]*$//')
+
+    # get OS kernel version
+    OS_KERNEL_VER=$(uname -r)
+
+    # get the Asterisk version
+    ASTERISK_VER="$($ASTERISK -V)"
+    ASTERISK_VER="${ASTERISK_VER#Asterisk }"
+
+    # get the AllStarLink version
+    get_asl_version
+
+    # get ASL package info
+    get_asl_package_info
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+show_asl_version()
+{
+    get_asl_version
+
+    /bin/echo -n "$ASL_VER"
+}
+
+show_full_info()
+{
+    get_full_info
+
+    echo "********** AllStarLink [ASL] Version Info **********"
+
+    echo ""
+    echo "OS            : $OS_PRETTY_NAME"
+    echo "OS Kernel     : $OS_KERNEL_VER"
+
+    echo ""
+    echo "Asterisk      : $ASTERISK_VER"
+    echo "ASL [app_rpt] : $ASL_VER"
+
+    if [[ -n "$ASL_PACKAGES" ]]; then
+	echo ""
+	echo "$ASL_PACKAGES"
+    fi
+}
+
+show_whiptail_info()
+{
+    get_full_info
+
+    read -r -d '' text << EOT
+
+OS            : $OS_PRETTY_NAME
+OS Kernel     : $OS_KERNEL_VER
+
+Asterisk      : $ASTERISK_VER
+ASL [app_rpt] : $ASL_VER
+
+$ASL_PACKAGES
+EOT
+
+    /usr/bin/clear
+    calc_wt_size
+    whiptail						\
+	--title "AllStarLink [ASL] Version Info"	\
+	--scrolltext					\
+	--msgbox "$text"				\
+	$WT_HEIGHT $WT_WIDTH
+
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+	"--asl" )
+	    show_asl_version
+	    exit $?
+	    ;;
+
+	"--whiptail" )
+	    show_whiptail_info
+	    exit $?
+	    ;;
+
+	* )
+	    echo "Usage: $0 [ --asl | --whiptail ]"
+	    exit 1
+    esac
+
+    exit 0
+fi
+
+#
+# ... and w/no args, report full version info
+#
+show_full_info
+exit $?
+
