@@ -782,7 +782,7 @@ do_node_set_simpleusb() {
 	if [[ $? -eq 0 ]]; then
 	    # if we are using templates
 
-	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/simpleusb.conf
+	    TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/simpleusb.conf
 
 	    awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
 		 /^\[/			{ p=0; next; }
@@ -812,21 +812,21 @@ txmixaset = 500
 
 	    TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/simpleusb.conf
 
-	awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
-	     /^\[/			{ p=0; next; }
-	     p==1 && /^devstr\\s*=/	{ d=1; exit; }
+	    awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
+		 /^\[/			{ p=0; next; }
+		 p==1 && /^devstr\\s*=/	{ d=1; exit; }
 					{ next; }
-	     END			{ exit d }
-            "									$CONFIG_DIR/simpleusb.conf
-        if [[ $? -eq 0 ]]; then
-	    # ... and add defaults for tune settings
-	    sed	-i									\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; .*Tune settings.*/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/a\\
+		 END			{ exit d }
+		"									$CONFIG_DIR/simpleusb.conf
+	    if [[ $? -eq 0 ]]; then
+		# ... and add defaults for tune settings
+		sed -i									\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; .*Tune settings.*/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/a\\
 \\
 eeprom = 0\\
 hdwtype = 0\\
@@ -1709,9 +1709,9 @@ do_allstar_node_select_menu() {
 	    get_node_settings
 	    if [[ "$CURRENT_PASSWD" == "Not Set" && $CURRENT_CALLSIGN == "NOTSET" ]]; then
 		# if not [yet] modified
-	    do_allstar_node_setup_menu
-	    return
-	fi
+		do_allstar_node_setup_menu
+		return
+	    fi
 	fi
 
 	# build menu selection for the nodes
