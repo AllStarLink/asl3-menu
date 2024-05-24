@@ -25,8 +25,7 @@ MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
 TITLE="AllStarLink 3.0.0"
 
-#logfile=/dev/null
-logfile=/tmp/asl-backup-menu.log
+logfile=/dev/null
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
@@ -511,8 +510,13 @@ do_backup_restore_menu() {
 /usr/bin/clear
 check_if_root
 
-if [[ $# -gt 0 ]]; then
+while [[ $# -gt 0 ]]; do
     case "$1" in
+	"--debug" )
+	    logfile=/tmp/asl-backup-menu.log
+	    shift
+	    ;;
+
 	"backup" )
 	    do_backup
 	    exit $?
@@ -528,21 +532,19 @@ if [[ $# -gt 0 ]]; then
 	    exit $?
 	    ;;
 
-	"delete" | "remove" )
+	"remove" )
 	    do_remove_local
 	    exit $?
 	    ;;
 
 	* )
-	    echo "Usage: $0 [ local | asl ]"
+	    echo "Usage: $0 [ --debug ] [ backup | restore-local | restore-asl | remove ]"
 	    exit 1
     esac
-
-    exit 0
-fi
+done
 
 #
-# ... and w/no args, present the backup/restore menu
+# ... and w/no other args, present the backup/restore menu
 #
 do_backup_restore_menu
 exit $?
