@@ -15,15 +15,14 @@
 # WD6AWP 03/2021, 04/2021
 # WA3WCO 01/2024
 
+ASL_VERSION=$(asl-show-version --asl)
 BACKUP_DIR="${DESTDIR}/var/asl-backups"
-
-SAVENODE_CONFIG=/etc/asterisk/savenode.conf
-SAVEHOST="backup.allstarlink.org"
-SAVESITE="https://${SAVEHOST}"
-
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
-TITLE="AllStarLink 3.0.0"
+SAVEHOST="backup.allstarlink.org"
+SAVENODE_CONFIG=/etc/asterisk/savenode.conf
+SAVESITE="https://${SAVEHOST}"
+TITLE="AllStarLink $ASL_VERSION"
 
 logfile=/dev/null
 

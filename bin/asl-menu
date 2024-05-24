@@ -7,22 +7,20 @@
 # Extensive Mods by WD6AWP April & May 2021
 # ASL3 rework/updates by WA3WCO Jan 2024
 
-REBOOT_NEEDED=0
-AST_RESTART=0
-CONFIG_DIR="${DESTDIR}/etc/asterisk"
-
+ASL_DEBUG=""
+ASL_VERSION=$(asl-show-version --asl)
+ASTDN=/usr/bin/astdn.sh
 ASTERISK=/usr/sbin/asterisk
 ASTRES=/usr/bin/astres.sh
 ASTUP=/usr/bin/astup.sh
-ASTDN=/usr/bin/astdn.sh
-
-UPDATE_NODELIST=asl3-update-nodelist
-
+AST_RESTART=0
+CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
-TITLE="AllStarLink 3.0.0"
+REBOOT_NEEDED=0
+TITLE="AllStarLink $ASL_VERSION"
+UPDATE_NODELIST=asl3-update-nodelist
 
-ASL_DEBUG=""
 logfile=/dev/null
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -72,9 +70,8 @@ calc_wt_size() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-get_node_info() {
-    echo "get_node_info" >>$logfile
-
+get_home_info() {
+    echo "get_home_info" >>$logfile
 
     REALID=$(who am i | awk '{print $1}')
     if [ $REALID == "root" ]; then
@@ -181,6 +178,12 @@ do_reboot() {
 	sleep 1
 	/usr/sbin/shutdown -r now
     fi
+}
+
+do_show_version() {
+    echo "do_show_version" >>$logfile
+
+    /usr/bin/asl-show-version --whiptail
 }
 
 do_shutdown() {
@@ -377,10 +380,11 @@ do_main_menu() {
 		    "1" "Node Settings"				\
 		    "2" "Enter a bash shell as root"		\
 		    "3" "Enter the Asterisk CLI"		\
-		    "4" "Diagnostics Menu"			\
-		    "5" "Expert Configuration Menu"		\
-		    "6" "Logout/Reboot/Shutdown"		\
-		    "7" "Enable/disable ASL Menu at login"	\
+		    "4" "Show System Version Numbers"		\
+		    "5" "Diagnostics Menu"			\
+		    "6" "Expert Configuration Menu"		\
+		    "7" "Logout/Reboot/Shutdown"		\
+		    "8" "Enable/disable ASL Menu at login"	\
 		    "B" "Backup and Restore Menu"		\
 		    "I" "Information and help text"		\
 		3>&1 1>&2 2>&3)
@@ -393,10 +397,11 @@ do_main_menu() {
 	    1)	do_node_setup					;;
 	    2)	do_bash_shell					;;
 	    3)	do_asterisk_cli					;;
-	    4)	do_sys_diags_menu				;;
-	    5)	do_conf_edit_menu				;;
-	    6)	do_logout_menu					;;
-	    7)	do_enable_login_menu				;;
+	    4)	do_show_version					;;
+	    5)	do_sys_diags_menu				;;
+	    6)	do_conf_edit_menu				;;
+	    7)	do_logout_menu					;;
+	    8)	do_enable_login_menu				;;
 	    B)	do_backup_restore_menu				;;
 	    I)	info_main_menu					;;
 	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
@@ -589,6 +594,6 @@ done
 
 /usr/bin/clear
 check_if_root
-get_node_info
+get_home_info
 check_configuration
 do_main_menu
