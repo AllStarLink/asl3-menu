@@ -3,7 +3,7 @@
 #
 SRCNAME = asl3-menu
 PKGNAME = $(SRCNAME)
-RELVER = 1.2
+RELVER = 1.3
 DEBVER = 1
 RELPLAT ?= deb$(shell lsb_release -rs 2> /dev/null)
 
@@ -28,8 +28,8 @@ deb:	debclean debprep
 	git checkout debian/changelog
 
 debchange:
-	debchange -v $(RELVER)-$(DEBVER)
-	debchange -r
+	debchange --newversion $(RELVER)-$(DEBVER)
+	debchange --release
 
 debprep: debclean
 	(cd .. && \

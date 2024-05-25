@@ -1,3 +1,18 @@
+asl3-menu (1.3-1) unstable; urgency=medium
+
+  * Add version number info to ASL menus (#10)
+    * Add ASL [app_rpt] version number to the "asl-menu", "node-setup", and
+      "asl-backup-menu" displays.
+    * Add a "Show System Version Numbers" option to the ASL menu.
+    * Add new "asl-show-version" script (to report OS info, Asterisk and
+      ASL [app_rpt] version, and info on installed ASL packages.
+  * Changing node # should update allmon3.ini (#13)
+  * Improve menu support of multiple nodes (#27)
+  * Disable Menu Logging (#31)
+  * Bug fixes
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Sat, 25 May 2024 13:52:43 -0400
+
 asl3-menu (1.2-1) unstable; urgency=medium
 
   * If needed, prompt for Asterisk restart after interface type changes

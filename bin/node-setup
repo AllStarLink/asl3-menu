@@ -975,7 +975,7 @@ rxvoiceadj = 0.5\\
 rxctcssadj = 0.5\\
 txctcssadj = 200\\
 rxsquelchadj = 500
-"										$CONFIG_DIR/usbradio.conf
+"											$CONFIG_DIR/usbradio.conf
 	    fi
 	fi
 
