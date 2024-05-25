@@ -879,7 +879,7 @@ do_node_set_usbradio() {
 	if [[ $? -eq 0 ]]; then
 	    # if we are using templates
 
-	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/usbradio.conf
+	    TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	"node-main"			$CONFIG_DIR/usbradio.conf
 
 	    awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
 		 /^\[/			{ p=0; next; }
@@ -910,32 +910,32 @@ rxvoiceadj = 0.5\\
 rxctcssadj = 0.5\\
 txctcssadj = 200\\
 rxsquelchadj = 500
-"										$CONFIG_DIR/usbradio.conf
+"											$CONFIG_DIR/usbradio.conf
 	    fi
 	else
 	    # if we are not using templates
 
-	    TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""			$CONFIG_DIR/usbradio.conf
+	    TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}"	""				$CONFIG_DIR/usbradio.conf
 
-	awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
-	     /^\[/			{ p=0; next; }
-	     p==1 && /^devstr\\s*=/	{ d=1; exit; }
+	    awk "/^\[${CURRENT_NODE}]/	{ p=1; next; }
+		 /^\[/			{ p=0; next; }
+		 p==1 && /^devstr\\s*=/	{ d=1; exit; }
 					{ next; }
-	     END			{ exit d }
-	    "									$CONFIG_DIR/usbradio.conf
-        if [[ $? -eq 0 ]]; then
-	    # ... and add defaults for tune settings
-	    sed	-i									\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; .*Tune settings.*/d; }"		\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxvoiceadj\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxctcssadj\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^txctcssadj\s*=/d; }"			\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxsquelchadj\s*=/d; }"		\
-		-e "/^\[$CURRENT_NODE]/a\\
+		 END			{ exit d }
+		"									$CONFIG_DIR/usbradio.conf
+	    if [[ $? -eq 0 ]]; then
+		# ... and add defaults for tune settings
+		sed -i									\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^;;;;; .*Tune settings.*/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^devstr\s*=/d; }"			\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxmixerset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixaset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txmixbset\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxvoiceadj\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxctcssadj\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^txctcssadj\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxsquelchadj\s*=/d; }"		\
+		    -e "/^\[$CURRENT_NODE]/a\\
 \\
 eeprom = 0\\
 hdwtype = 0\\
