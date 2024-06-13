@@ -181,23 +181,28 @@ do_update_node_callsign() {
     while true; do
 	calc_wt_size
 
+	ANSWER="$CURRENT_CALLSIGN"
+	if [[ "$CURRENT_CALLSIGN" == "NOTSET" ]]; then
+	    ANSWER=""
+	fi
+
 	ANSWER=$(whiptail							\
 		    --title "$TITLE"						\
-		    --inputbox "Enter the call sign for node $NEW_NODE :"	\
+		    --inputbox "Enter the call sign for node $CURRENT_NODE :"	\
 		    $MSGBOX_HEIGHT $MSGBOX_WIDTH				\
-		    "$CURRENT_CALLSIGN"						\
+		    "$ANSWER"							\
 		    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
 	    return
 	fi
 
-	re=^[0-9A-Z/-]{3,}$
+	re=^[0-9A-Za-z/-]{3,}$
 	if [[ $ANSWER =~ $re ]]; then
 	    break
 	fi
 
 	whiptail	\
-	    --msgbox "A call sign may only uppercase letters and numbers. The call must be 3 or more characters in length."	\
+	    --msgbox "A call sign may only letters and numbers. The call must be 3 or more characters in length."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
@@ -205,7 +210,7 @@ do_update_node_callsign() {
 	return
     fi
 
-    NEW_CALLSIGN=$ANSWER
+    NEW_CALLSIGN="${ANSWER^^}"
     do_node_set_callsign
 }
 
@@ -492,22 +497,19 @@ do_node_rename() {
 do_update_node_password() {
     echo "doing do_update_node_password" >>$logfile
 
-    if [[ "$CURRENT_PASSWD" == "Not Set" && $CURRENT_CALLSIGN == "NOTSET" ]]; then
-	whiptail											\
-	    --title "$TITLE"										\
-	    --msgbox "This looks like a new node. Change node number before setting the password."	\
-	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	return
-    fi
-
     while true; do
 	calc_wt_size
 
-	ANSWER=$(whiptail										\
-		    --title "$TITLE"									\
-		    --inputbox "Enter the password for node $NEW_NODE :"				\
-		    $MSGBOX_HEIGHT $MSGBOX_WIDTH							\
-		    "$CURRENT_PASSWD"									\
+	ANSWER="$CURRENT_PASSWORD"
+	if [[ "$CURRENT_PASSWORD" == "=Not Set=" ]]; then
+	    ANSWER=""
+	fi
+
+	ANSWER=$(whiptail							\
+		    --title "$TITLE"						\
+		    --inputbox "Enter the password for node $CURRENT_NODE :"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH				\
+		    "$ANSWER"							\
 		    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
 	    return
@@ -518,21 +520,30 @@ do_update_node_password() {
 	    break
 	fi
 
-	whiptail											\
+	whiptail								\
 	    --msgbox "The node password may only contain letters, numbers, underscore and dash. It must be 6 or more characters in length."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
-    if [[ "$ANSWER" == "$CURRENT_PASSWD" ]]; then
+    if [[ "$ANSWER" == "$CURRENT_PASSWORD" ]]; then
 	return
     fi
 
-    NEW_PASSWD=$ANSWER
+    NEW_PASSWORD=$ANSWER
     do_node_set_password
 }
 
 do_node_set_password() {
     echo "doing do_node_set_password" >>$logfile
+
+    # If missing, add registration
+    egrep									\
+	--quiet									\
+	-e "^register.*=>*\s*1234:abcdef@"					\
+	-e "^register.*=>*\s*$CURRENT_NODE:"					$CONFIG_DIR/rpt_http_registrations.conf
+    if [ $? -ne 0 ]; then
+	do_node_add_registration
+    fi
 
     # Update node registration
     #
@@ -540,10 +551,9 @@ do_node_set_password() {
     # * The template node has a node # of "1234" and not "1999". Fix this first :-)
     # * New nodes will have the register statement commented. Remove it first then change node password.
     #
-
-    sed -i									\
-	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"		\
-	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_PASSWD/$NEW_PASSWD/"	$CONFIG_DIR/rpt_http_registrations.conf
+    sed -i											\
+	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
+	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/:${CURRENT_PASSWORD}@/:${NEW_PASSWORD}@/"	$CONFIG_DIR/rpt_http_registrations.conf
 
     # Update "save-node" configuration
     egrep --quiet "^NODE=$CURRENT_NODE$" /etc/asterisk/savenode.conf
@@ -553,7 +563,7 @@ do_node_set_password() {
 	# then we also need to update here (and mark as enabled).
 	#
 	sed -i									\
-	    -e "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWD/"		\
+	    -e "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWORD/"	\
 	    -e "/^ENABLE\s*=/   s/ENABLE\s*=.*/ENABLE=1/"			$CONFIG_DIR/savenode.conf
     fi
 
@@ -847,7 +857,7 @@ devstr =\\
 rxmixerset = 500\\
 txmixbset = 500\\
 txmixaset = 500
-"										$CONFIG_DIR/simpleusb.conf
+"											$CONFIG_DIR/simpleusb.conf
 	    fi
 	fi
 
@@ -1144,10 +1154,10 @@ get_node_settings () {
     rm $AWK_TMP
 
     # ... and pick up the node password too!
-    CURRENT_PASSWD=$(grep "^register.*=>*\s*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
+    CURRENT_PASSWORD=$(grep "^register.*=>*\s*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
 	| sed 's/.*:\(.*\)@.*/\1/')
-    if [[ -z $CURRENT_PASSWD ]]; then
-	CURRENT_PASSWD='Not Set'
+    if [[ -z $CURRENT_PASSWORD ]]; then
+	CURRENT_PASSWORD='=Not Set='
     fi
 }
 
@@ -1493,21 +1503,34 @@ EOT
 do_allstar_node_setup_menu() {
     echo "do_allstar_node_setup_menu" >>$logfile
 
+    DEFAULT_ITEM=0
+
     get_allow_block_settings
 
     while true; do
 	calc_wt_size
 	get_node_settings
 
-	ANSWER=$(whiptail					\
+	DISPLAY_CALLSIGN="$CURRENT_CALLSIGN"
+	if [[ "$CURRENT_CALLSIGN" == "NOTSET" ]]; then
+	    DISPLAY_CALLSIGN=""
+	fi
+
+	DISPLAY_PASSWORD="$CURRENT_PASSWORD"
+	if [[ "$CURRENT_PASSWORD" == "=Not Set=" ]]; then
+	    DISPLAY_PASSWORD=""
+	fi
+
+	CHOICE=$(whiptail					\
 		    --title "$TITLE"				\
+		    --default-item=$DEFAULT_ITEM		\
 		    --menu "AllStar Node Setup Menu"		\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
 		    --ok-button "Select"			\
 		    --cancel-button "Back"			\
 	    "1" "Node number      : $CURRENT_NODE"		\
-	    "2" "Node password    : $CURRENT_PASSWD"		\
-	    "3" "Node callsign    : $CURRENT_CALLSIGN"		\
+	    "2" "Node password    : $DISPLAY_PASSWORD"		\
+	    "3" "Node callsign    : $DISPLAY_CALLSIGN"		\
 	    "4" "Radio interface  : $CURRENT_INTERFACE"		\
 	    "5" "Duplex type      : $CURRENT_DUPLEX"		\
 	    "6" "Post node status : $CURRENT_STATPOST"		\
@@ -1519,7 +1542,7 @@ do_allstar_node_setup_menu() {
 	    return
 	fi
 
-	case "$ANSWER" in
+	case "$CHOICE" in
 	    1)	do_update_node_number
 		;;
 	    2)	do_update_node_password
@@ -1538,13 +1561,31 @@ do_allstar_node_setup_menu() {
 		;;
 	    I)	do_node_setup_menu_info
 		;;
-	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    *)	whiptail --msgbox "$CHOICE is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+		continue
 		;;
 	esac
+
+	DEFAULT_ITEM=$CHOICE
     done
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_node_add_registration() {
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
+	# add the registration
+	ex $CONFIG_DIR/rpt_http_registrations.conf		<<_END_OF_INPUT
+/^\[registrations]
+/^\[
+i
+register => ${CURRENT_NODE}:${CURRENT_PASSWORD}@register.allstarlink.org
+
+.
+:wq
+_END_OF_INPUT
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
+}
 
 do_node_add() {
     echo "do_node_add" >>$logfile
@@ -1592,18 +1633,7 @@ ${CURRENT_NODE} = radio@127.0.0.1/${CURRENT_NODE},NONE
 _END_OF_INPUT
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
-    TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
-	# add the registration
-	ex $CONFIG_DIR/rpt_http_registrations.conf		<<_END_OF_INPUT
-/^\[registrations]
-/^\[
-i
-register => ${CURRENT_NODE}:${CURRENT_PASSWORD}@register.allstarlink.org
-
-.
-:wq
-_END_OF_INPUT
-    TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
+    do_node_add_registration
 
     # Update modules
     do_update_chan_modules
@@ -1707,7 +1737,7 @@ do_allstar_node_select_menu() {
 
 	    # check if the [template] node has been updated
 	    get_node_settings
-	    if [[ "$CURRENT_PASSWD" == "Not Set" && $CURRENT_CALLSIGN == "NOTSET" ]]; then
+	    if [[ "$CURRENT_PASSWORD" == "=Not Set=" && $CURRENT_CALLSIGN == "NOTSET" ]]; then
 		# if not [yet] modified
 		do_allstar_node_setup_menu
 		return
