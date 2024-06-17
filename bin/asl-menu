@@ -541,7 +541,7 @@ do_sys_diags_menu() {
 do_backup_restore_menu() {
     echo "do_backup_restore_menu" >>$logfile
 
-    /usr/bin/asl-backup-menu $ASL_DEBUG
+    /usr/bin/asl-backup-menu --sub-menu $ASL_DEBUG
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====

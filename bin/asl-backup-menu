@@ -22,6 +22,7 @@ MSGBOX_WIDTH=60
 SAVEHOST="backup.allstarlink.org"
 SAVENODE_CONFIG=/etc/asterisk/savenode.conf
 SAVESITE="https://${SAVEHOST}"
+SUB_MENU=0
 TITLE="AllStarLink $ASL_VERSION"
 
 logfile=/dev/null
@@ -475,14 +476,20 @@ EOT
 do_backup_restore_menu() {
     echo "do_backup_restore_menu" >>$logfile
 
+    LABEL_CANCEL="Exit"
+    if [[ $SUB_MENU -ne 0 ]]; then
+	LABEL_CANCEL="Back"
+    fi
+
     while true; do
 	calc_wt_size
+
 	ANSWER=$(whiptail						\
 		    --title "$TITLE"					\
 		    --menu "Backup/Restore Menu"			\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
 		    --ok-button "Select"				\
-		    --cancel-button "Back"				\
+		    --cancel-button "$LABEL_CANCEL"			\
 		    "1" "Create node backup"				\
 		    "2" "Restore node from local backups"		\
 		    "3" "Restore node from \"$SAVEHOST\" backups"	\
@@ -516,6 +523,11 @@ while [[ $# -gt 0 ]]; do
 	    shift
 	    ;;
 
+	"--sub-menu" )
+	    SUB_MENU=1
+	    shift
+	    ;;
+
 	"backup" )
 	    do_backup
 	    exit $?
@@ -537,7 +549,7 @@ while [[ $# -gt 0 ]]; do
 	    ;;
 
 	* )
-	    echo "Usage: $0 [ --debug ] [ backup | restore-local | restore-asl | remove ]"
+	    echo "Usage: $0 [ --debug ] [ --sub-menu ] [ backup | restore-local | restore-asl | remove ]"
 	    exit 1
     esac
 done
