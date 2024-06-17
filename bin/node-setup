@@ -186,9 +186,14 @@ do_update_node_callsign() {
 	    ANSWER=""
 	fi
 
+	DISPLAY_CALLSIGN="$CURRENT_CALLSIGN"
+	if [[ "$CURRENT_CALLSIGN" == "NOTSET" ]]; then
+	    DISPLAY_CALLSIGN="not set"
+	fi
+
 	ANSWER=$(whiptail							\
 		    --title "$TITLE"						\
-		    --inputbox "Enter the call sign for node $CURRENT_NODE :"	\
+		    --inputbox "The current call sign for node $CURRENT_NODE is $DISPLAY_CALLSIGN.\n\nEnter new call sign :"	\
 		    $MSGBOX_HEIGHT $MSGBOX_WIDTH				\
 		    "$ANSWER"							\
 		    3>&1 1>&2 2>&3)
@@ -197,12 +202,12 @@ do_update_node_callsign() {
 	fi
 
 	re=^[0-9A-Za-z/-]{3,}$
-	if [[ $ANSWER =~ $re ]]; then
+	if [[ $ANSWER =~ $re || -z "$ANSWER" ]]; then
 	    break
 	fi
 
 	whiptail	\
-	    --msgbox "A call sign may only letters and numbers. The call must be 3 or more characters in length."	\
+	    --msgbox "A call sign, if provided, may contain only letters and numbers. The call must be 3 or more characters in length."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
@@ -219,6 +224,11 @@ do_node_set_callsign() {
 
     # Update callsign (for "ID")
 
+    CALLSIGN_PREFIX=""
+    if [[ -n "$NEW_CALLSIGN" ]]; then
+	CALLSIGN_PREFIX="|i"
+    fi
+
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
 	# if present, remove any existing "idrecording" setting for
@@ -227,7 +237,7 @@ do_node_set_callsign() {
 	sed	-i							\
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^idrecording\s*=/d; }"	\
 		-e "/^\[$CURRENT_NODE]/a\\
-idrecording = |i${NEW_CALLSIGN}
+idrecording = ${CALLSIGN_PREFIX}${NEW_CALLSIGN}
 "									$CONFIG_DIR/rpt.conf
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
@@ -1522,7 +1532,7 @@ do_allstar_node_setup_menu() {
 
 	DISPLAY_CALLSIGN="$CURRENT_CALLSIGN"
 	if [[ "$CURRENT_CALLSIGN" == "NOTSET" ]]; then
-	    DISPLAY_CALLSIGN=""
+	    DISPLAY_CALLSIGN="*** Not Set ***     <--"
 	fi
 
 	DISPLAY_PASSWORD="$CURRENT_PASSWORD"
