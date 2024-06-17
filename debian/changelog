@@ -1,3 +1,10 @@
+asl3-menu (1.5-1) stable; urgency=medium
+
+  * Remove the requirement that each node have a call sign (#39)
+  * Additional nodes not getting [alt] iax port (#41)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Mon, 17 Jun 2024 18:48:41 -0400
+
 asl3-menu (1.4-1) stable; urgency=medium
 
   * Improve handling with modified configuration files (#37)
