@@ -170,7 +170,7 @@ do_astres() {
 do_backup_restore_menu() {
     echo "do_backup_restore_menu" >>$logfile
 
-    /usr/bin/asl-backup-menu $ASL_DEBUG
+    /usr/bin/asl-backup-menu --sub-menu $ASL_DEBUG
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -306,8 +306,7 @@ duplex = $NEW_DUPLEX
 do_update_iax_bindport() {
     echo "doing do_update_iax_bindport" >>$logfile
 
-    CURRENT_BINDPORT=$(grep '^bindport\s*=\s*'	$CONFIG_DIR/iax.conf	\
-	| sed 's/^bindport\s*=\s*//;s/\s*;.*$//')
+    get_iax_settings
 
     while true; do
 	calc_wt_size
@@ -330,7 +329,7 @@ do_update_iax_bindport() {
 	whiptail --msgbox "The node number must be a number between 1 and 65535\n\nNote: the default port is 4569." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
-    if [[ $ANSWER == $CURRENT_BINDPORT ]]; then
+    if [[ $ANSWER -eq $CURRENT_BINDPORT ]]; then
 	return
     fi
 
@@ -357,13 +356,14 @@ do_set_iax_bindport() {
 	CURRENT_NODE="${nodes[$i]}"
 
 	TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
-	    # update the per-node
+	    # update the per-node bindport
 	    sed -i					\
 		-E					\
 		-e "/^[0-9]+\s*=\s*radio@/		\
 			{				\
 			    s/:[0-9]+\//\//;		\
-			    s/\//:$NEW_BINDPORT\//	\
+			    s/\//:$NEW_BINDPORT\//;	\
+			    s/:4569\//\//		\
 			}"				$CONFIG_DIR/rpt.conf
 	TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
     done
@@ -1085,6 +1085,15 @@ get_ami_settings () {
 
 }
 
+get_iax_settings () {
+    # get up the bind  port
+    CURRENT_BINDPORT=$(grep '^bindport\s*=\s*' $CONFIG_DIR/iax.conf					\
+	| sed 's/^bindport\s*=\s*//;s/\s*;.*$//')
+    if [[ -z "$CURRENT_BINDPORT" ]]; then
+	CURRENT_BINDPORT=4569
+    fi
+}
+
 get_node_settings () {
     # collect info for [CURRENT_NODE]
 
@@ -1153,10 +1162,10 @@ get_node_settings () {
 
     rm $AWK_TMP
 
-    # ... and pick up the node password too!
+    # and pick up the node password
     CURRENT_PASSWORD=$(grep "^register.*=>*\s*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
 	| sed 's/.*:\(.*\)@.*/\1/')
-    if [[ -z $CURRENT_PASSWORD ]]; then
+    if [[ -z "$CURRENT_PASSWORD" ]]; then
 	CURRENT_PASSWORD='=Not Set='
     fi
 }
@@ -1631,6 +1640,18 @@ ${CURRENT_NODE} = radio@127.0.0.1/${CURRENT_NODE},NONE
 .
 :wq
 _END_OF_INPUT
+
+	# ... and ensure that the new node has the current bindport
+	get_iax_settings
+	sed -i							\
+	    -E							\
+	    -e "/^${CURRENT_NODE}\s*=\s*radio@/			\
+		{						\
+		    s/:[0-9]+\//\//;				\
+		    s/\//:$CURRENT_BINDPORT\//;			\
+		    s/:4569\//\//				\
+		}"						$CONFIG_DIR/rpt.conf
+
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
     do_node_add_registration
@@ -1815,17 +1836,17 @@ EOT
 do_main_menu() {
     echo "do_main_menu" >>$logfile
 
+    LABEL_CANCEL="Exit"
+    if [[ $SUB_MENU -ne 0 ]]; then
+	LABEL_CANCEL="Back"
+    fi
+
     while true; do
 	calc_wt_size
 
 	NEED_RESTART=""
 	if [[ $AST_RESTART -ne 0 ]]; then
 	    NEED_RESTART="<-- Needed"
-	fi
-
-	LABEL_CANCEL="Exit"
-	if [[ $SUB_MENU -ne 0 ]]; then
-	    LABEL_CANCEL="Back"
 	fi
 
 	ANSWER=$(whiptail						\
