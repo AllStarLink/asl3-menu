@@ -672,6 +672,11 @@ do_set_ami_secret() {
     update_file_permissions $CONFIG_DIR/manager.conf
 
     AST_RESTART=1
+
+    if [[ -f "${ALLMON3_INI}" ]]; then
+	sed -i -e "/^pass\s*=\s*$CURRENT_AMI_SECRET/ s/$CURRENT_AMI_SECRET/$NEW_AMI_SECRET/"	"${ALLMON3_INI}"
+	ALLMON3_RESTART=1
+    fi
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
