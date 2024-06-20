@@ -1,3 +1,9 @@
+asl3-menu (1.6-1) stable; urgency=medium
+
+  * Changing AMI password should update allmon3.ini
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Thu, 20 Jun 2024 11:09:44 -0400
+
 asl3-menu (1.5-1) stable; urgency=medium
 
   * Remove the requirement that each node have a call sign (#39)
