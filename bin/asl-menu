@@ -454,7 +454,7 @@ do_conf_edit_menu() {
 		    "6"  "Edit manager.conf file"	 		\
 		    "7"  "Edit echolink.conf file"	 		\
 		    "8"  "Edit usbradio.conf file"	 		\
-		    "9"  "Edit simplusb.conf file"	 		\
+		    "9"  "Edit simpleusb.conf file"	 		\
 		    "10" "Edit voter.conf file, RTCM users"		\
 		    "11" "Edit savenode.conf"	 			\
 		    "B" "Backup and Restore Menu"			\
