@@ -248,17 +248,55 @@ idrecording = ${CALLSIGN_PREFIX}${NEW_CALLSIGN}
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
+do_update_telemetry() {
+    echo "doing do_update_telemetry" >>$logfile
+
+    read -r -d '' TELEMETRY_TEXT << EOT
+Nodes with no telemetry can be setup for either full or half duplex.  Full duplex is preferred when interfacing with an external multiport repeater controller.
+
+Do you want to use full or half duplex?
+EOT
+
+    DEFAULT_BUTTON=""
+    if [[ $CURRENT_LINKTOLINK = "no" ]]; then
+	DEFAULT_BUTTON="--defaultno"
+    fi
+
+    whiptail								\
+	--title "$TITLE"						\
+	--yes-button "Full"						\
+	--no-button "Half"						\
+	$DEFAULT_BUTTON							\
+	--yesno	"${TELEMETRY_TEXT}"					\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    case $? in
+	0) NEW_LINKTOLINK="yes"
+	   ;;
+	1) NEW_LINKTOLINK="no"
+	   ;;
+	*) NEW_LINKTOLINK=$CURRENT_LINKTOLINK
+	   ;;
+    esac
+}
+
 do_update_node_duplex() {
-    echo "doing do_new_duplex" >>$logfile
+    echo "doing do_update_node_duplex" >>$logfile
 
     # Array of duplex choices
-    duplex_modes=(							\
-		  "Half duplex with no telemetry (link)"		\
-		  "Half duplex with telemetry (hotspot)"		\
-		  "Full Duplex with telemetry (repeater)"		\
-		  "Full Duplex with telemetry, in cabinet repeat"	\
-		  "Full Duplex with telemetry, no repeat w/autopatch"	\
-		 )
+    duplex_modes=()
+    if [[ $CURRENT_DUPLEX -eq 0 ]]; then
+	if [[ $CURRENT_LINKTOLINK -eq 0 ]]; then
+	    duplex_modes+=("HALF/Full duplex with no telemetry (link)")
+	else
+	    duplex_modes+=("Half/FULL duplex with no telemetry (link)")
+	fi
+    else
+	duplex_modes+=("Half/Full duplex with no telemetry (link)")
+    fi
+    duplex_modes+=("Half duplex with telemetry (hotspot)")
+    duplex_modes+=("Full Duplex with telemetry (repeater)")
+    duplex_modes+=("Full Duplex with telemetry, in cabinet repeat")
+    duplex_modes+=("Full Duplex with telemetry, no repeat w/autopatch")
 
     newarr=()
     for i in ${!duplex_modes[@]}; do
@@ -285,9 +323,18 @@ do_update_node_duplex() {
     re=^[0-4]$
     if ! [[ $ANSWER =~ $re ]]; then
 	whiptail --msgbox "Duplex type must be a number between 0 and 4." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    elif [[ $ANSWER != $CURRENT_DUPLEX ]]; then
-	NEW_DUPLEX=$ANSWER
-	do_set_duplex
+    else
+	if [[ $ANSWER -eq 0 ]]; then
+	    do_update_telemetry
+	else
+	    NEW_LINKTOLINK=$CURRENT_LINKTOLINK
+	fi
+	if [[ "$CURRENT_DUPLEX"     != "$ANSWER"		||	\
+	      "$CURRENT_LINKTOLINK" != "$NEW_LINKTOLINK"		\
+	   ]]; then
+	    NEW_DUPLEX=$ANSWER
+	    do_set_duplex
+	fi
     fi
 }
 
@@ -296,8 +343,52 @@ do_set_duplex() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
-	# if present, remove "duplex" for this node
-	# ... and add new "duplex" for this node
+	# if changing to (or from) "Half-duplex w/telemetry", update the
+	# "wait_times" setting.
+	#
+	if [[ $NEW_DUPLEX -eq 1 ]]; then
+	    if [[ "$CURRENT_WAIT_TIMES" = "wait-times" ]]; then
+		#
+		# add "wait_times = wait-times_hd"
+		#
+		sed	-i							\
+			-e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	\
+			-e "/^\[$CURRENT_NODE]/a\\
+wait_times = wait-times_hd
+"									$CONFIG_DIR/rpt.conf
+	    fi
+	elif [[ $CURRENT_DUPLEX -eq 1 && "$CURRENT_WAIT_TIMES" = "wait-times_hd" ]]; then
+	    #
+	    # remove "wait_times = wait-times_hd"
+	    #
+	    sed	-i							\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	$CONFIG_DIR/rpt.conf
+	fi
+
+	#
+	# if changing to (or from) "Half/Full duplex with no telemetry",
+	# update the "linktolink" setting.
+	#
+	if [[ $NEW_DUPLEX -eq 0 && "$CURRENT_LINKTOLINK" != "$NEW_LINKTOLINK" ]]; then
+	    #
+	    # add "linktolink = (no | yes)"
+	    #
+	    sed	-i							\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^linktolink\s*=/d; }"	\
+		-e "/^\[$CURRENT_NODE]/a\\
+linktolink = $NEW_LINKTOLINK
+"									$CONFIG_DIR/rpt.conf
+	elif [[ $CURRENT_DUPLEX -eq 0 && "$CURRENT_LINKTOLINK" = "yes" ]]; then
+	    #
+	    # remove "linktolik = yes"
+	    #
+	    sed	-i							\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^linktolink\s*=/d; }"	$CONFIG_DIR/rpt.conf
+	fi
+
+	#
+	# if present, remove "duplex" from this node
+	# ... and add new "duplex" to this node
 	#
 	sed	-i							\
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^duplex\s*=/d; }"	\
@@ -609,12 +700,12 @@ do_set_statpost() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
-	# if present, remove "statpost" for this node
+	# if present, remove "statpost" from this node
 	#
 	sed -i -e "/^\[$CURRENT_NODE]/,/^\[/ { /^statpost_url\s*=/d; }"	$CONFIG_DIR/rpt.conf
 
 	if [ $NEW_STATPOST = "Yes" ]; then
-	    # if enabled, add "statpost" for this node
+	    # if enabled, add "statpost" to this node
 	    sed -i -e "/^\[$CURRENT_NODE]/a\\
 statpost_url = http:\/\/stats.allstarlink.org\/uhandler
 "									$CONFIG_DIR/rpt.conf
@@ -776,8 +867,8 @@ do_set_rxchannel() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
-	# if present, remove "rxchannel" for this node
-	# ... and add new "rxchannel" for this node
+	# if present, remove "rxchannel" from this node
+	# ... and add new "rxchannel" to this node
 	#
 	sed	-i								\
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxchannel\s*=/d; }"		\
@@ -1119,6 +1210,9 @@ get_node_settings () {
     CURRENT_PASSWORD=""
     CURRENT_STATPOST="No"
 
+    CURRENT_LINKTOLINK="0"
+    CURRENT_WAIT_TIMES="wait-times"
+
     AWK_TMP=$(mktemp)
 
     awk	"BEGIN			{ p=0; }
@@ -1169,6 +1263,12 @@ get_node_settings () {
 		;;
 	    "statpost_url" )
 		CURRENT_STATPOST="Yes"
+		;;
+	    "linktolink" )
+		CURRENT_LINKTOLINK=$value
+		;;
+	    "wait_times" )
+		CURRENT_WAIT_TIMES=$value
 		;;
 	    * )
 		;;
