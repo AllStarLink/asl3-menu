@@ -347,22 +347,45 @@ do_set_duplex() {
 	# "wait_times" setting.
 	#
 	if [[ $NEW_DUPLEX -eq 1 ]]; then
-	    if [[ "$CURRENT_WAIT_TIMES" = "wait-times" ]]; then
+	    grep -q "^\[wait-times_hd]"						$CONFIG_DIR/rpt.conf
+	    if [[ $? -eq 0 && "$CURRENT_WAIT_TIMES" = "wait-times" ]]; then
 		#
 		# add "wait_times = wait-times_hd"
 		#
-		sed	-i							\
-			-e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	\
-			-e "/^\[$CURRENT_NODE]/a\\
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/a\\
 wait_times = wait-times_hd
-"									$CONFIG_DIR/rpt.conf
+"										$CONFIG_DIR/rpt.conf
 	    fi
-	elif [[ $CURRENT_DUPLEX -eq 1 && "$CURRENT_WAIT_TIMES" = "wait-times_hd" ]]; then
-	    #
-	    # remove "wait_times = wait-times_hd"
-	    #
-	    sed	-i							\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	$CONFIG_DIR/rpt.conf
+
+	    if [[ "$CURRENT_HANGTIME" = "2000" ]]; then
+		#
+		# add "hangtime = 400"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/a\\
+hangtime = 400
+"										$CONFIG_DIR/rpt.conf
+	    fi
+	elif [[ $CURRENT_DUPLEX -eq 1 ]]; then
+	    grep -q "^\[wait-times]"					$CONFIG_DIR/rpt.conf
+	    if [[ $? -eq 0 && "$CURRENT_WAIT_TIMES" = "wait-times_hd" ]]; then
+		#
+		# remove "wait_times = wait-times_hd"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	$CONFIG_DIR/rpt.conf
+	    fi
+
+	    if [[ "$CURRENT_HANGTIME" = "400" ]]; then
+		#
+		# remove "hangtime = 400"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	$CONFIG_DIR/rpt.conf
+	    fi
 	fi
 
 	#
@@ -1210,6 +1233,7 @@ get_node_settings () {
     CURRENT_PASSWORD=""
     CURRENT_STATPOST="No"
 
+    CURRENT_HANGTIME="5000"
     CURRENT_LINKTOLINK="0"
     CURRENT_WAIT_TIMES="wait-times"
 
@@ -1263,6 +1287,9 @@ get_node_settings () {
 		;;
 	    "statpost_url" )
 		CURRENT_STATPOST="Yes"
+		;;
+	    "hangtime" )
+		CURRENT_HANGTIME=$value
 		;;
 	    "linktolink" )
 		CURRENT_LINKTOLINK=$value
