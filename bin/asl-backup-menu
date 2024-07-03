@@ -17,6 +17,8 @@
 
 ASL_VERSION=$(asl-show-version --asl)
 BACKUP_DIR="${DESTDIR}/var/asl-backups"
+BACKUP_LIST="${BACKUP_DIR}/asl-backup-files"
+BACKUP_MAXSIZE=2000000
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
 SAVEHOST="backup.allstarlink.org"
@@ -113,6 +115,72 @@ do_backup_local_create() {
 	fi
     fi
 
+    if [[ ! -f "${BACKUP_LIST}" ]]; then
+	# create [default] list of files and directories to backup
+	cat <<'__EOF__'				> "$BACKUP_LIST"
+#
+# ASL Backup
+# ==========
+#
+# This file contains a list of the file (and directory) path names that will
+# be included in any backup archives created by the "asl-backup" command.
+#
+# Note:
+# - lines beginning with a "#" are ignored
+# - blank lines are ignored
+#
+
+#
+# Obviously, we want to save the Asterisk/AllStarLink configuration files
+#
+/etc/asterisk
+
+#
+# Include the paths being backed up
+#
+/var/asl-backups/asl-backup-files
+
+#
+# For systems with an SA818
+#
+/etc/sa818.conf
+
+#
+# Allmon3
+#
+/etc/allmon3/allmon3.ini
+/etc/allmon3/custom.css
+/etc/allmon3/menu.ini
+/etc/allmon3/user-restrictions
+/etc/allmon3/users
+/etc/allmon3/web.ini
+
+#
+# Below, please include the path (or directory) names for the "configuration"
+# files of other packages that you would like to include in the backup.
+#
+# Note: there is size limit for all backup archives being uploaded to the
+#       AllStarLink backup servers.  As such, you should be selective about
+#       any additions (e.g. specify ONLY "configuration" files).
+#
+
+__EOF__
+    fi
+
+    TAR_INCLUDE=$(mktemp)
+    cat "$BACKUP_LIST"			\
+    | sed -e 's/^\s+//'			\
+    | grep -v -e "^#" -e "^$"		\
+    | while read path;
+    do
+	RP=$(realpath "/$path" 2>/dev/null)
+	if [[ $? -eq 0 ]]; then
+	    if [[ -e "${RP}" ]]; then
+		echo "$RP"		>> "$TAR_INCLUDE"
+	    fi
+	fi
+    done
+
     echo "Creating archive, please wait..."
     tar					\
 	--create			\
@@ -120,9 +188,10 @@ do_backup_local_create() {
 	--directory="/"			\
 	--file="$BACKUP_ARCHIVE"	\
 	--exclude='*.tgz'		\
-	etc/asterisk			\
+	--files-from="$TAR_INCLUDE"	\
 	>/dev/null
     RC=$?
+    rm -f "$TAR_INCLUDE"
     if [[ $RC -ne 0 ]]; then
 	whiptail --msgbox "There was an error creating the backup (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	return $RC
@@ -149,6 +218,12 @@ do_backup_asl_push() {
 
     do_load_asl_settings
     if [[ $? -ne 0 ]]; then
+	return 1
+    fi
+
+    BACKUP_SIZE=$(stat --printf=%s "$BACKUP_ARCHIVE")
+    if [[ $BACKUP_SIZE -gt $BACKUP_MAXSIZE ]]; then
+	whiptail --msgbox "The backup archive is too large for the AllStarLink backup server ($BACKUP_SIZE > $BACKUP_MAXSIZE)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	return 1
     fi
 
