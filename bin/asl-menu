@@ -120,7 +120,7 @@ do_finish() {
 	--title "$TITLE"	\
 	--yesno "If you exit you may type \"asl-menu\" to relaunch this menu.\n\nExit ASL Main Menu now?"	\
 	$MSGBOX_HEIGHT $MSGBOX_WIDTH
-    if [ $? -eq 0 ] || [ $? -eq 255 ]; then
+    if [[ $? -eq 0 || $? -eq 255 ]]; then
 	exit
     fi
     X_STOP=$(date +%s)
@@ -369,10 +369,13 @@ EOT
 do_main_menu() {
     echo "do_main_menu" >>$logfile
 
+    DEFAULT_ITEM=0
+
     while true; do
 	calc_wt_size
-	ANSWER=$(whiptail					\
+	CHOICE=$(whiptail					\
 		    --title "$TITLE"				\
+		    --default-item=$DEFAULT_ITEM		\
 		    --menu "AllStarLink Main Menu"		\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
 		    --ok-button "Select"			\
@@ -393,7 +396,7 @@ do_main_menu() {
 	    continue
 	fi
 
-	case "$ANSWER" in
+	case "$CHOICE" in
 	    1)	do_node_setup					;;
 	    2)	do_bash_shell					;;
 	    3)	do_asterisk_cli					;;
@@ -404,8 +407,10 @@ do_main_menu() {
 	    8)	do_enable_login_menu				;;
 	    B)	do_backup_restore_menu				;;
 	    I)	info_main_menu					;;
-	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	    *)	whiptail --msgbox "$CHOICE is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
 	esac
+
+	DEFAULT_ITEM=$CHOICE
     done
 }
 
@@ -438,48 +443,77 @@ do_conf_edit_menu() {
 	editor=${EDITOR:-${ALT_EDIT:-nano}}
     fi
 
+    DEFAULT_ITEM=0
+
     while true; do
 	calc_wt_size
-	ANSWER=$(whiptail						\
-		    --title "$TITLE"					\
-		    --menu "Expert Configuration Menu"			\
-		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
-		    --ok-button "Select"				\
-		    --cancel-button "Back to Main" 			\
-		    "1"  "Edit rpt.conf file"	 			\
-		    "2"  "Edit rpt_http_registrations.conf file"	\
-		    "3"  "Edit iax.conf file"	 			\
-		    "4"  "Edit extensions.conf file"	 		\
-		    "5"  "Edit modules.conf file"	 		\
-		    "6"  "Edit manager.conf file"	 		\
-		    "7"  "Edit echolink.conf file"	 		\
-		    "8"  "Edit usbradio.conf file"	 		\
-		    "9"  "Edit simpleusb.conf file"	 		\
-		    "10" "Edit voter.conf file, RTCM users"		\
-		    "11" "Edit savenode.conf"	 			\
-		    "B" "Backup and Restore Menu"			\
-		    "I"  "Information"	 				\
+
+	NEED_RESTART=""
+	if [[ $AST_RESTART -ne 0 ]]; then
+	    NEED_RESTART="<-- Needed"
+	fi
+
+	CHOICE=$(whiptail							\
+		    --title "$TITLE"						\
+		    --default-item=$DEFAULT_ITEM				\
+		    --menu "Expert Configuration Menu"				\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT			\
+		    --ok-button "Select"					\
+		    --cancel-button "Back to Main" 				\
+		    "1"  "Edit rpt.conf file"	 				\
+		    "2"  "Edit rpt_http_registrations.conf file"		\
+		    "3"  "Edit iax.conf file"	 				\
+		    "4"  "Edit extensions.conf file"	 			\
+		    "5"  "Edit modules.conf file"	 			\
+		    "6"  "Edit manager.conf file"	 			\
+		    "7"  "Edit echolink.conf file"	 			\
+		    "8"  "Edit usbradio.conf file"	 			\
+		    "9"  "Edit simpleusb.conf file"	 			\
+		    "10" "Edit voter.conf file, RTCM users"			\
+		    "11" "Edit savenode.conf"	 				\
+		    "R"  "Restart Asterisk                       $NEED_RESTART"	\
+		    "B"  "Backup and Restore Menu"				\
+		    "I"  "Information"	 					\
 		    3>&1 1>&2 2>&3)
 	if [ $? -ne 0 ]; then
 	    return
 	fi
 
-	case "$ANSWER" in
-	    1)	$editor $CONFIG_DIR/rpt.conf				;;
-	    2)	$editor $CONFIG_DIR/rpt_http_registrations.conf		;;
-	    3)	$editor $CONFIG_DIR/iax.conf				;;
-	    4)	$editor $CONFIG_DIR/extensions.conf			;;
-	    5)	$editor $CONFIG_DIR/modules.conf			;;
-	    6)	$editor $CONFIG_DIR/manager.conf			;;
-	    7)	$editor $CONFIG_DIR/echolink.conf			;;
-	    8)	$editor $CONFIG_DIR/usbradio.conf			;;
-	    9)	$editor $CONFIG_DIR/simpleusb.conf			;;
-	    10)	$editor $CONFIG_DIR/voter.conf				;;
-	    11)	$editor $CONFIG_DIR/savenode.conf			;;
+	# file to edit (normal and asterisk)
+	EDIT_FILE=""
+	EDIT_AST_FILE=""
+
+	case "$CHOICE" in
+	    1)	EDIT_AST_FILE="$CONFIG_DIR/rpt.conf"			;;
+	    2)	EDIT_AST_FILE="$CONFIG_DIR/rpt_http_registrations.conf"	;;
+	    3)	EDIT_AST_FILE="$CONFIG_DIR/iax.conf"			;;
+	    4)	EDIT_AST_FILE="$CONFIG_DIR/extensions.conf"		;;
+	    5)	EDIT_AST_FILE="$CONFIG_DIR/modules.conf"		;;
+	    6)	EDIT_AST_FILE="$CONFIG_DIR/manager.conf"		;;
+	    7)	EDIT_AST_FILE="$CONFIG_DIR/echolink.conf"		;;
+	    8)	EDIT_AST_FILE="$CONFIG_DIR/usbradio.conf"		;;
+	    9)	EDIT_AST_FILE="$CONFIG_DIR/simpleusb.conf"		;;
+	    10)	EDIT_AST_FILE="$CONFIG_DIR/voter.conf"			;;
+	    11)	EDIT_FILE="$CONFIG_DIR/savenode.conf"			;;
+	    R)  do_astres						;;
 	    B)	do_backup_restore_menu					;;
 	    I)	info_config_menu					;;
-	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	    *)	whiptail --msgbox "$CHOICE is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
 	esac
+
+	if [[ -n "$EDIT_AST_FILE" ]]; then
+	    EDIT_FILE="$EDIT_AST_FILE"
+	fi
+	if [[ -n "$EDIT_FILE" ]]; then
+	    sum1=$(sum "$EDIT_FILE" 2>/dev/null)
+	    $editor "$EDIT_FILE"
+	    sum2=$(sum "$EDIT_FILE" 2>/dev/null)
+	    if [[ -n "$EDIT_AST_FILE" && "$sum1" != "$sum2" ]]; then
+		AST_RESTART=1
+	    fi
+	fi
+
+	DEFAULT_ITEM=$CHOICE
     done
 }
 
@@ -498,10 +532,13 @@ EOT
 do_sys_diags_menu() {
     echo "do_sys_diags_menu" >>$logfile
 
+    DEFAULT_ITEM=0
+
     while true; do
 	calc_wt_size
-	ANSWER=$(whiptail					\
+	CHOICE=$(whiptail					\
 		    --title "$TITLE"				\
+		    --default-item=$DEFAULT_ITEM		\
 		    --menu "System Diagnostics Menu"		\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
 		    --ok-button "Select"			\
@@ -520,7 +557,7 @@ do_sys_diags_menu() {
 	    return
 	fi
 
-	case "$ANSWER" in
+	case "$CHOICE" in
 	    1)	do_ping_google_dns				;;
 	    2)	do_ping_asl_register				;;
 	    3)	do_asl_show_version				;;
@@ -531,8 +568,10 @@ do_sys_diags_menu() {
 	    8)	do_validate_updatenodelist_running		;;
 	    9)	do_updatenodelist_restart			;;
 	    I)	info_diagnostics_menu				;;
-	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	    *)	whiptail --msgbox "$CHOICE is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
 	esac
+
+	DEFAULT_ITEM=$CHOICE
     done
 }
 
@@ -551,7 +590,7 @@ do_logout_menu() {
 
     while true; do
 	calc_wt_size
-	ANSWER=$(whiptail						\
+	CHOICE=$(whiptail						\
 		    --title "$TITLE"					\
 		    --menu "Exit Menu"					\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
@@ -566,12 +605,12 @@ do_logout_menu() {
 	    return
 	fi
 
-	case "$ANSWER" in
+	case "$CHOICE" in
 	    1)	do_shutdown						;;
 	    2)	do_reboot						;;
 	    3)	do_astres						;;
 	    4)	do_logout						;;
-	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
+	    *)	whiptail --msgbox "$CHOICE is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH ;;
 	esac
     done
 }
