@@ -14,7 +14,7 @@ ASL_VERSION=$(asl-show-version --asl)
 ASTERISK=/usr/sbin/asterisk
 ASTRES=/usr/bin/astres.sh
 AST_RECONFIG=0
-AST_RESTART=0
+AST_RESTART=${AST_RESTART:-0}
 CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
@@ -47,7 +47,7 @@ update_file_permissions() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 calc_wt_size() {
-    echo "doing calc_wt_size" >>$logfile
+#   echo "doing calc_wt_size" >>$logfile
 
     # Bash knows the terminal size
     #   The number of columns are $COLUMNS
@@ -826,6 +826,8 @@ do_update_node_interface() {
 }
 
 do_noload_chan_modules() {
+    echo "..doing do_noload_chan_modules" >>$logfile
+
     # set common [app_rpt] channel modules to noload
     sed -i									\
 	-e "/^load\s*=>\s*chan_simpleusb/ s/load/noload/"			\
@@ -836,6 +838,8 @@ do_noload_chan_modules() {
 }
 
 do_load_chan_module() {
+    echo "....doing do_load_chan_module ${1}" >>$logfile
+
     # load specific [app_rpt] channel module
     MODULE="chan_$1"
 
@@ -843,6 +847,8 @@ do_load_chan_module() {
 }
 
 do_load_chan_modules() {
+    echo "..doing do_load_chan_modules" >>$logfile
+
     # load all [app_rpt] channel modules referenced in the configuration
 
     SAVE_NODE=$CURRENT_NODE
@@ -879,6 +885,8 @@ do_load_chan_modules() {
 }
 
 do_update_chan_modules() {
+    echo "doing do_update_chan_modules" >>$logfile
+
     # Update modules
     do_noload_chan_modules
     do_load_chan_modules
@@ -1669,7 +1677,7 @@ do_allstar_node_setup_menu() {
 
 	DISPLAY_PASSWORD="$CURRENT_PASSWORD"
 	if [[ "$CURRENT_PASSWORD" == "=Not Set=" ]]; then
-	    DISPLAY_PASSWORD=""
+	    DISPLAY_PASSWORD="*** Not Set ***     <--"
 	fi
 
 	CHOICE=$(whiptail					\
@@ -1723,7 +1731,96 @@ do_allstar_node_setup_menu() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
+do_node_select_defaults() {
+    echo "do_node_select_defaults" >>$logfile
+
+    if [[ "$1" != "first" ]]; then
+	MSG="What default settings should we use for node $CURRENT_NODE?"
+    else
+	MSG="What default settings should we use for your first node?"
+    fi
+
+    NEW_DUPLEX=""
+    NEW_INTERFACE_TYPE=""
+
+    ANSWER=$(whiptail						\
+		--title "$TITLE"				\
+		--menu "${MSG}"					\
+		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
+		--ok-button "Select"				\
+		"1" "Hotspot"					\
+		"2" "Repeater"					\
+		"3" "Voter"					\
+		"4" "No radio / HUB"				\
+		"O" "Other"					\
+		3>&1 1>&2 2>&3)
+    if [[ $? -ne 0 ]]; then
+	return
+    fi
+
+    case "$ANSWER" in
+	1)  # Hotspot
+	    NEW_INTERFACE_TYPE="SimpleUSB"
+	    NEW_DUPLEX=1
+	    ;;
+	2)  # Repeater
+	    NEW_INTERFACE_TYPE="SimpleUSB"
+	    NEW_DUPLEX=2
+	    ;;
+	3)  # Voter
+	    NEW_INTERFACE_TYPE="Voter"
+	    NEW_DUPLEX=2
+	    ;;
+	4)  # Hub
+	    NEW_INTERFACE_TYPE="Pseudo"
+	    NEW_DUPLEX=2
+	    ;;
+	O)  # Use [node] default settings
+	    ;;
+	*)  whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    ;;
+    esac
+}
+
+do_node_set_defaults() {
+    echo "do_node_set_defaults" >>$logfile
+
+    if [[ -n "$NEW_INTERFACE_TYPE" ]]; then
+	CURRENT_INTERFACE_TYPE="?"
+	case "$NEW_INTERFACE_TYPE" in
+	    "SimpleUSB" )
+		do_node_set_simpleusb
+		;;
+	    "USBRadio" )
+		do_node_set_usbradio
+		;;
+	    "Voter" )
+		do_node_set_voter
+		;;
+	    "Pseudo" )
+		do_node_set_pseudo
+		;;
+	    "USRP" )
+		do_node_set_usrp
+		;;
+	esac
+    fi
+
+    if [[ -n "$NEW_DUPLEX" ]]; then
+	do_set_duplex
+    fi
+
+    if [[ -n "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
+	NEW_STATPOST="Yes"
+	do_set_statpost
+    fi
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
 do_node_add_registration() {
+    echo "do_node_add_registration" >>$logfile
+
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
 	# add the registration
 	ex $CONFIG_DIR/rpt_http_registrations.conf		<<_END_OF_INPUT
@@ -1768,6 +1865,8 @@ do_node_add() {
 	fi
     done
 
+    do_node_select_defaults add
+
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	# add the per-node category
 	TEMPLATE_CATEGORY_ADD "${CURRENT_NODE}" "node-main"	$CONFIG_DIR/rpt.conf
@@ -1796,10 +1895,15 @@ _END_OF_INPUT
 
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
-    do_node_add_registration
+    if [[ -z "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
+	# if using [node-main] template
+	do_update_chan_modules
+    else
+	# if using "selected" defaults
+	do_node_set_defaults
+    fi
 
-    # Update modules
-    do_update_chan_modules
+    do_node_add_registration
 
     update_file_permissions			\
 	$CONFIG_DIR/modules.conf		\
@@ -1902,6 +2006,16 @@ do_allstar_node_select_menu() {
 	    get_node_settings
 	    if [[ "$CURRENT_PASSWORD" == "=Not Set=" && $CURRENT_CALLSIGN == "NOTSET" ]]; then
 		# if not [yet] modified
+
+		# choose the initial node type
+		do_node_select_defaults first
+
+		if [[ -n "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
+		    # apply the defaults for the selected type
+		    do_node_set_defaults
+		fi
+
+		# show the initial node
 		do_allstar_node_setup_menu
 		return
 	    fi
@@ -2038,7 +2152,7 @@ do_exit() {
 	    --title "$TITLE"			\
 	    --yesno "Asterisk must be restarted to make your changes active.\n\nAre you sure you want to exit now?"	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	if [[ $? -eq 0 ]]; then
+	if [[ $? -eq 0 || $? -eq 255 ]]; then
 	    exit 0
 	fi
     else
