@@ -450,7 +450,7 @@ do_update_iax_bindport() {
 	    break
 	fi
 
-	whiptail --msgbox "The node number must be a number between 1 and 65535\n\nNote: the default port is 4569." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --msgbox "The port must be a number between 1 and 65535\n\nNote: the default port is 4569." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     if [[ $ANSWER -eq $CURRENT_BINDPORT ]]; then
@@ -516,12 +516,16 @@ do_update_node_number() {
 	    return
 	fi
 
-	re=^[0-9]\+$
-	if [[ $ANSWER =~ $re ]]; then
+	re=^[0-9]{4,6}$
+	if ! [[ $ANSWER =~ $re ]]; then
+	    whiptail --msgbox "The new node number must have 4-6 digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ $ANSWER -lt 1000 ]]; then
+	    whiptail --msgbox "Private node numbers start at 1000." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ $ANSWER -ge 2000 && $ANSWER =~ ^1 ]]; then
+	    whiptail --msgbox "Registered node numbers cannot start with a \"1\"." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
 	    break
 	fi
-
-	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     if [[ $ANSWER == $CURRENT_NODE ]]; then
@@ -551,7 +555,7 @@ do_node_rename() {
     # * Then, change node number.
     #
     sed -i										\
-	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"			\
+	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:/"		\
 	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
 
     # Update appropriate extensions.conf lines
@@ -659,6 +663,10 @@ do_update_node_password() {
 
 do_node_set_password() {
     echo "doing do_node_set_password" >>$logfile
+
+    if [[ "$CURRENT_PASSWORD" == "=Not Set=" ]]; then
+	CURRENT_PASSWORD=""
+    fi
 
     # If missing, add registration
     egrep									\
@@ -1352,7 +1360,7 @@ do_limit_nodes_add() {
 	    break
 	fi
 
-	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --msgbox "Please enter a valid node number, usually 4 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     case "$ACTION" in
@@ -1390,7 +1398,7 @@ do_limit_nodes_remove() {
 	    break
 	fi
 
-	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --msgbox "Please enter a valid node number, usually 4 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     case "$ACTION" in
@@ -1677,7 +1685,11 @@ do_allstar_node_setup_menu() {
 
 	DISPLAY_PASSWORD="$CURRENT_PASSWORD"
 	if [[ "$CURRENT_PASSWORD" == "=Not Set=" ]]; then
-	    DISPLAY_PASSWORD="*** Not Set ***     <--"
+	    if [[ $CURRENT_NODE -ge 2000 ]]; then
+		DISPLAY_PASSWORD="*** Not Set ***     <--"
+	    else
+		DISPLAY_PASSWORD=""
+	    fi
 	fi
 
 	CHOICE=$(whiptail					\
@@ -1821,6 +1833,10 @@ do_node_set_defaults() {
 do_node_add_registration() {
     echo "do_node_add_registration" >>$logfile
 
+    if [[ "$CURRENT_PASSWORD" == "=Not Set=" ]]; then
+	CURRENT_PASSWORD=""
+    fi
+
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
 	# add the registration
 	ex $CONFIG_DIR/rpt_http_registrations.conf		<<_END_OF_INPUT
@@ -1851,15 +1867,23 @@ do_node_add() {
 	    return
 	fi
 
-	re=^[0-9]\+$
+	re=^[0-9]{4,6}$
 	if ! [[ $ANSWER =~ $re ]]; then
-	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    whiptail --msgbox "The node number must have 4-6 digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ $ANSWER -lt 1000 ]]; then
+	    whiptail --msgbox "Private node numbers start at 1000." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ $ANSWER -ge 2000 && $ANSWER =~ ^1 ]]; then
+	    whiptail --msgbox "Registered node numbers cannot start with a \"1\"." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	elif [[ ${nodes[@]} =~ $ANSWER ]]; then
 	    whiptail --msgbox "Node number \"$ANSWER\" is already defined, please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	else
 	    CURRENT_NODE=$ANSWER
 	    if [ -z "$CURRENT_PASSWORD" ]; then
-		CURRENT_PASSWORD="abcdef"
+		if [[ $ANSWER -ge 2000 ]]; then
+		    CURRENT_PASSWORD="abcdef"
+		else
+		    CURRENT_PASSWORD=""
+		fi
 	    fi
 	    break
 	fi
@@ -1935,7 +1959,7 @@ do_node_remove() {
 
 	re=^[0-9]\+$
 	if ! [[ $ANSWER =~ $re ]]; then
-	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    whiptail --msgbox "Please enter a valid node number, usually 4 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	elif [[ ! ${nodes[@]} =~ $ANSWER ]]; then
 	    whiptail --msgbox "There is no configuration for node number \"$ANSWER\", please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	else
