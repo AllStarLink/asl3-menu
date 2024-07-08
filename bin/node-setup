@@ -10,6 +10,7 @@
 ALLMON3_INI="${DESTDIR}/etc/allmon3/allmon3.ini"
 ALLMON3_RESTART=0
 ASL_DEBUG=""
+ASL_UPDATED=${ASL_UPDATED:-0}
 ASL_VERSION=$(asl-show-version --asl)
 ASTERISK=/usr/sbin/asterisk
 ASTRES=/usr/bin/astres.sh
@@ -42,6 +43,8 @@ check_configuration() {
 update_file_permissions() {
     ASTERISK_USER=$(stat --format="%U" "$CONFIG_DIR")
     chown $ASTERISK_USER $*
+
+    ASL_UPDATED=1
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -2170,6 +2173,11 @@ do_main_menu() {
 
 do_exit() {
     echo "doing do_exit" >>$logfile
+
+    if [[ $ASL_UPDATED -ne 0 ]]; then
+	sync
+	ASL_UPDATED=0
+    fi
 
     if [[ $AST_RESTART -ne 0 ]]; then
 	whiptail				\
