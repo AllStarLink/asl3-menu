@@ -8,6 +8,7 @@
 # ASL3 rework/updates by WA3WCO Jan 2024
 
 ASL_DEBUG=""
+ASL_UPDATED=0
 ASL_VERSION=$(asl-show-version --asl)
 ASTDN=/usr/bin/astdn.sh
 ASTERISK=/usr/sbin/asterisk
@@ -115,13 +116,18 @@ do_finish() {
 	fi
     fi
 
+    if [[ $ASL_UPDATED -ne 0 ]]; then
+   	ASL_UPDATED=0
+	sync
+    fi
+
     X_START=$(date +%s)
     whiptail			\
 	--title "$TITLE"	\
 	--yesno "If you exit you may type \"asl-menu\" to relaunch this menu.\n\nExit ASL Main Menu now?"	\
 	$MSGBOX_HEIGHT $MSGBOX_WIDTH
     if [[ $? -eq 0 || $? -eq 255 ]]; then
-	exit
+	exit 0
     fi
     X_STOP=$(date +%s)
     if [ $X_START -eq $X_STOP ]; then
@@ -215,7 +221,7 @@ do_logout() {
 	--yesno "To logout, select <Yes> and then type \"logout\"."		\
 	$MSGBOX_HEIGHT $MSGBOX_WIDTH
     if [ $? -eq 0 ]; then
-	exit
+	exit 0
     fi
 }
 
@@ -509,6 +515,7 @@ do_conf_edit_menu() {
 	    $editor "$EDIT_FILE"
 	    sum2=$(sum "$EDIT_FILE" 2>/dev/null)
 	    if [[ -n "$EDIT_AST_FILE" && "$sum1" != "$sum2" ]]; then
+		ASL_UPDATED=1
 		AST_RESTART=1
 	    fi
 	fi
