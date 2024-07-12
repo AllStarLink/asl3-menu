@@ -360,6 +360,58 @@ do_set_duplex() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
+	# if changing to (or from) "Half/Full duplex with no telemetry",
+	# update the "linktolink" setting.
+	#
+	if [[ $NEW_DUPLEX -eq 0 ]]; then
+	    if [[ "$CURRENT_LINKTOLINK" != "$NEW_LINKTOLINK" ]]; then
+		#
+		# add "linktolink = (no | yes)"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^linktolink\s*=/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/a\\
+linktolink = $NEW_LINKTOLINK
+"										$CONFIG_DIR/rpt.conf
+		CURRENT_LINKTOLINK=$NEW_LINKTOLINK
+	    fi
+
+	    ADD_HANGTIME=0
+	    if [[ $CURRENT_HANGTIME -eq 2000 ]]; then
+		ADD_HANGTIME=1
+	    elif [[ $CURRENT_DUPLEX -eq 1 && CURRENT_HANGTIME -eq 400 ]]; then
+		ADD_HANGTIME=1
+	    fi
+	    if [[ $ADD_HANGTIME -eq 1 ]]; then
+		#
+		# add/change "hangtime = 100"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/a\\
+hangtime = 100
+"										$CONFIG_DIR/rpt.conf
+	    fi
+	elif [[ $CURRENT_DUPLEX -eq 0 ]]; then
+	    if [[ "$CURRENT_LINKTOLINK" = "yes" ]]; then
+		#
+		# remove "linktolink = yes"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^linktolink\s*=/d; }"	$CONFIG_DIR/rpt.conf
+		CURRENT_LINKTOLINK="no"
+	    fi
+
+	    if [[ $CURRENT_HANGTIME -eq 100 ]]; then
+		#
+		# remove "hangtime = 100"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	$CONFIG_DIR/rpt.conf
+	    fi
+	fi
+
+	#
 	# if changing to (or from) "Half-duplex w/telemetry", update the
 	# "wait_times" setting.
 	#
@@ -376,7 +428,13 @@ wait_times = wait-times_hd
 "										$CONFIG_DIR/rpt.conf
 	    fi
 
-	    if [[ "$CURRENT_HANGTIME" = "2000" ]]; then
+	    ADD_HANGTIME=0
+	    if [[ $CURRENT_HANGTIME -eq 2000 ]]; then
+		ADD_HANGTIME=1
+	    elif [[ $CURRENT_DUPLEX -eq 0 && CURRENT_HANGTIME -eq 100 ]]; then
+		ADD_HANGTIME=1
+	    fi
+	    if [[ $ADD_HANGTIME -eq 1 ]]; then
 		#
 		# add "hangtime = 400"
 		#
@@ -396,34 +454,13 @@ hangtime = 400
 		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	$CONFIG_DIR/rpt.conf
 	    fi
 
-	    if [[ "$CURRENT_HANGTIME" = "400" ]]; then
+	    if [[ $CURRENT_HANGTIME -eq 400 ]]; then
 		#
 		# remove "hangtime = 400"
 		#
 		sed -i								\
 		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	$CONFIG_DIR/rpt.conf
 	    fi
-	fi
-
-	#
-	# if changing to (or from) "Half/Full duplex with no telemetry",
-	# update the "linktolink" setting.
-	#
-	if [[ $NEW_DUPLEX -eq 0 && "$CURRENT_LINKTOLINK" != "$NEW_LINKTOLINK" ]]; then
-	    #
-	    # add "linktolink = (no | yes)"
-	    #
-	    sed	-i							\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^linktolink\s*=/d; }"	\
-		-e "/^\[$CURRENT_NODE]/a\\
-linktolink = $NEW_LINKTOLINK
-"									$CONFIG_DIR/rpt.conf
-	elif [[ $CURRENT_DUPLEX -eq 0 && "$CURRENT_LINKTOLINK" = "yes" ]]; then
-	    #
-	    # remove "linktolik = yes"
-	    #
-	    sed	-i							\
-		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^linktolink\s*=/d; }"	$CONFIG_DIR/rpt.conf
 	fi
 
 	#
@@ -1964,8 +2001,10 @@ do_node_set_defaults() {
     fi
 
     if [[ -n "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
-	NEW_STATPOST="Yes"
-	do_set_statpost
+	if [[ $CURRENT_NODE -ge 2000 ]]; then
+	    NEW_STATPOST="Yes"
+	    do_set_statpost
+	fi
     fi
 }
 
