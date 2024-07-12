@@ -623,15 +623,43 @@ do_node_rename() {
 	-e "/^rxchannel\s*=\s*Radio\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	\
 	-e "/^rxchannel\s*=\s*Voter\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt.conf
 
-    # Update node registration
-    #
-    # Note:
-    # * The template node has a node # of "1234" and not "1999". Fix this first :-)
-    # * Then, change node number.
-    #
-    sed -i										\
-	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:/"		\
-	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
+    if [[ $NEW_NODE -lt 2000 && $CURRENT_STATPOST != "No" ]]; then
+	# disable statpost for private node
+	SAVE_NODE=$CURRENT_NODE
+	CURRENT_NODE=$NEW_NODE
+	NEW_STATPOST="No"
+	do_set_statpost
+	CURRENT_NODE=$SAVE_NODE
+    fi
+
+    # Update appropriate rpt_http_registrations.conf lines
+    if [[ $NEW_NODE -ge 2000 ]]; then
+	#
+	# Update node registration
+	#
+	# Note:
+	# * The template node has a node # of "1234" and not "1999". Fix this first :-)
+	# * Then, change node number.
+	#
+	sed -i										\
+	    -e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:/"	\
+	    -e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
+    else
+	#
+	# Do not register private nodes
+	#
+	REM_NODE=$CURRENT_NODE
+	do_node_remove_registration
+
+	#
+	# and clean up some cruft
+	#
+	egrep --quiet -e "^register.*=>*\s*1234:abcdef@"				$CONFIG_DIR/rpt_http_registrations.conf
+	if [ $? -eq 0 ]; then
+	    REM_NODE=1234
+	    do_node_remove_registration
+	fi
+    fi
 
     # Update appropriate extensions.conf lines
     sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/extensions.conf
@@ -752,29 +780,32 @@ do_update_node_password() {
 do_node_set_password() {
     echo "doing do_node_set_password" >>$logfile
 
+    # If private node, remove the registration
+    if [[ $CURRENT_NODE -lt 2000 ]]; then
+	REM_NODE=$CURRENT_NODE
+	do_node_remove_registration
+	return
+    fi
+
     if [[ "$CURRENT_PASSWORD" = "=Not Set=" ]]; then
 	CURRENT_PASSWORD=""
     fi
 
-    # If missing, add registration
+    # Check registration, add if missing
     egrep									\
 	--quiet									\
 	-e "^register.*=>*\s*1234:abcdef@"					\
 	-e "^register.*=>*\s*$CURRENT_NODE:"					$CONFIG_DIR/rpt_http_registrations.conf
     if [ $? -ne 0 ]; then
-	if [[ $CURRENT_NODE -ge 2000 ]]; then
-	    do_node_add_registration
-	else
-	    # we don't register private nodes
-	    return
-	fi
+	do_node_add_registration
     fi
 
+    #
     # Update node registration
     #
     # Note:
     # * The template node has a node # of "1234" and not "1999". Fix this first :-)
-    # * New nodes will have the register statement commented. Remove it first then change node password.
+    # * Then, change node password.
     #
     sed -i											\
 	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
@@ -802,19 +833,31 @@ do_node_set_password() {
 do_update_node_statpost() {
     echo "doing do_update_node_statpost" >>$logfile
 
-    # un/comments the statpost command in rpt.conf
-    whiptail								\
-	--title "$TITLE"						\
-	--yesno "Enabling status posting to AllStarLink.org?"		\
-	$MSGBOX_HEIGHT $MSGBOX_WIDTH
-    case $? in
-	0) NEW_STATPOST="Yes"
-	   ;;
-	1) NEW_STATPOST="No"
-	   ;;
-	*) return
-	   ;;
-    esac
+    if [[ $CURRENT_NODE -ge 2000 ]]; then
+	# un/comment the statpost command in rpt.conf
+	whiptail								\
+	    --title "$TITLE"						\
+	    --yesno "Enabling status posting to AllStarLink.org?"		\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	case $? in
+	    0)  NEW_STATPOST="Yes"
+		;;
+	    1)  NEW_STATPOST="No"
+		;;
+	    *)  return
+		;;
+	esac
+    else
+	whiptail								\
+	    --title "$TITLE"							\
+	    --msgbox "Status posting cannot be enabled for private nodes."	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	NEW_STATPOST="No"
+    fi
+
+    if [[ $CURRENT_STATPOST = $NEW_STATPOST ]]; then
+	return
+    fi
 
     do_set_statpost
 }
@@ -2031,6 +2074,16 @@ _END_OF_INPUT
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
 }
 
+do_node_remove_registration() {
+    echo "do_node_remove_registration" >>$logfile
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
+	# remove the per-node registration
+	sed -i -e "/^\[registrations]/,/^\[/ { /^register\s*=>\s*${REM_NODE}/d; }"	\
+								$CONFIG_DIR/rpt_http_registrations.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
+}
+
 do_node_add() {
     echo "do_node_add" >>$logfile
 
@@ -2150,11 +2203,7 @@ do_node_remove() {
 	sed -i -e "/^\[nodes]/,/^\[/ { /^${REM_NODE}\s*=/d }"	$CONFIG_DIR/rpt.conf
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
-    TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
-	# remove the per-node registration
-	sed -i -e "/^\[registrations]/,/^\[/ { /^register\s*=>\s*${REM_NODE}/d; }"	\
-								$CONFIG_DIR/rpt_http_registrations.conf
-    TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
+    do_node_remove_registration
 
     # Remove the [node] from the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
