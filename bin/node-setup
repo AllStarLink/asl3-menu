@@ -416,17 +416,17 @@ hangtime = 100
 	# "wait_times" setting.
 	#
 	if [[ $NEW_DUPLEX -eq 1 ]]; then
-	    grep -q "^\[wait-times_hd]"						$CONFIG_DIR/rpt.conf
-	    if [[ $? -eq 0 && "$CURRENT_WAIT_TIMES" = "wait-times" ]]; then
-		#
-		# add "wait_times = wait-times_hd"
-		#
-		sed -i								\
-		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	\
-		    -e "/^\[$CURRENT_NODE]/a\\
-wait_times = wait-times_hd
-"										$CONFIG_DIR/rpt.conf
-	    fi
+#	    grep -q "^\[wait-times_hd]"						$CONFIG_DIR/rpt.conf
+#	    if [[ $? -eq 0 && "$CURRENT_WAIT_TIMES" = "wait-times" ]]; then
+#		#
+#		# add "wait_times = wait-times_hd"
+#		#
+#		sed -i								\
+#		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	\
+#		    -e "/^\[$CURRENT_NODE]/a\\
+#wait_times = wait-times_hd
+#"										$CONFIG_DIR/rpt.conf
+#	    fi
 
 	    ADD_HANGTIME=0
 	    if [[ $CURRENT_HANGTIME -eq 2000 ]]; then
@@ -445,14 +445,14 @@ hangtime = 400
 "										$CONFIG_DIR/rpt.conf
 	    fi
 	elif [[ $CURRENT_DUPLEX -eq 1 ]]; then
-	    grep -q "^\[wait-times]"					$CONFIG_DIR/rpt.conf
-	    if [[ $? -eq 0 && "$CURRENT_WAIT_TIMES" = "wait-times_hd" ]]; then
-		#
-		# remove "wait_times = wait-times_hd"
-		#
-		sed -i								\
-		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	$CONFIG_DIR/rpt.conf
-	    fi
+#	    grep -q "^\[wait-times]"						$CONFIG_DIR/rpt.conf
+#	    if [[ $? -eq 0 && "$CURRENT_WAIT_TIMES" = "wait-times_hd" ]]; then
+#		#
+#		# remove "wait_times = wait-times_hd"
+#		#
+#		sed -i								\
+#		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	$CONFIG_DIR/rpt.conf
+#	    fi
 
 	    if [[ $CURRENT_HANGTIME -eq 400 ]]; then
 		#
