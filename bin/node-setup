@@ -1942,8 +1942,9 @@ do_query_node_defaults() {
 	NEW_PASSWORD=""
     fi
 
-    NEW_DUPLEX=""
     NEW_INTERFACE_TYPE=""
+    NEW_DUPLEX=""
+    NEW_LINKTOLINK=$CURRENT_LINKTOLINK
 
     ANSWER=$(whiptail									\
 		--title "$TITLE"							\
