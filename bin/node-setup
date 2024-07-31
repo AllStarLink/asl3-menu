@@ -10,11 +10,12 @@
 ALLMON3_INI="${DESTDIR}/etc/allmon3/allmon3.ini"
 ALLMON3_RESTART=0
 ASL_DEBUG=""
+ASL_UPDATED=${ASL_UPDATED:-0}
 ASL_VERSION=$(asl-show-version --asl)
 ASTERISK=/usr/sbin/asterisk
 ASTRES=/usr/bin/astres.sh
 AST_RECONFIG=0
-AST_RESTART=0
+AST_RESTART=${AST_RESTART:-0}
 CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
@@ -42,12 +43,14 @@ check_configuration() {
 update_file_permissions() {
     ASTERISK_USER=$(stat --format="%U" "$CONFIG_DIR")
     chown $ASTERISK_USER $*
+
+    ASL_UPDATED=1
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 calc_wt_size() {
-    echo "doing calc_wt_size" >>$logfile
+#   echo "doing calc_wt_size" >>$logfile
 
     # Bash knows the terminal size
     #   The number of columns are $COLUMNS
@@ -175,30 +178,31 @@ do_backup_restore_menu() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_update_node_callsign() {
-    echo "doing do_update_node_callsign" >>$logfile
+do_query_node_callsign() {
+    echo "..doing do_query_node_callsign" >>$logfile
 
     while true; do
 	calc_wt_size
 
 	ANSWER="$CURRENT_CALLSIGN"
-	if [[ "$CURRENT_CALLSIGN" == "NOTSET" ]]; then
+	if [[ "$CURRENT_CALLSIGN" = "NOTSET" ]]; then
 	    ANSWER=""
 	fi
 
-	DISPLAY_CALLSIGN="$CURRENT_CALLSIGN"
-	if [[ "$CURRENT_CALLSIGN" == "NOTSET" ]]; then
-	    DISPLAY_CALLSIGN="not set"
+	if [[ "$CURRENT_CALLSIGN" != "NOTSET" ]]; then
+	    INPUT_TEXT="The current call sign for node $CURRENT_NODE is $CURRENT_CALLSIGN.\n\nEnter new call sign :"
+	else
+	    INPUT_TEXT="The call sign for node $CURRENT_NODE has not been set.\n\nEnter call sign :"
 	fi
 
-	ANSWER=$(whiptail							\
-		    --title "$TITLE"						\
-		    --inputbox "The current call sign for node $CURRENT_NODE is $DISPLAY_CALLSIGN.\n\nEnter new call sign :"	\
-		    $MSGBOX_HEIGHT $MSGBOX_WIDTH				\
-		    "$ANSWER"							\
+	ANSWER=$(whiptail				\
+		    --title "$TITLE"			\
+		    --inputbox "$INPUT_TEXT"		\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH	\
+		    "$ANSWER"				\
 		    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
-	    return
+	    return 1
 	fi
 
 	re=^[0-9A-Za-z/-]{3,}$
@@ -211,7 +215,20 @@ do_update_node_callsign() {
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
-    if [[ $ANSWER == $CURRENT_CALLSIGN ]]; then
+    return 0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_update_node_callsign() {
+    echo "doing do_update_node_callsign" >>$logfile
+
+    do_query_node_callsign
+    if [[ $? -ne 0 ]]; then
+	return
+    fi
+
+    if [[ $ANSWER = $CURRENT_CALLSIGN ]]; then
 	return
     fi
 
@@ -248,17 +265,55 @@ idrecording = ${CALLSIGN_PREFIX}${NEW_CALLSIGN}
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
+do_update_telemetry() {
+    echo "doing do_update_telemetry" >>$logfile
+
+    read -r -d '' TELEMETRY_TEXT << EOT
+Nodes with no telemetry can be setup for either full or half duplex.  Full duplex is preferred when interfacing with an external multiport repeater controller.
+
+Do you want to use full or half duplex?
+EOT
+
+    DEFAULT_BUTTON=""
+    if [[ $CURRENT_LINKTOLINK = "no" ]]; then
+	DEFAULT_BUTTON="--defaultno"
+    fi
+
+    whiptail								\
+	--title "$TITLE"						\
+	--yes-button "Full"						\
+	--no-button "Half"						\
+	$DEFAULT_BUTTON							\
+	--yesno	"${TELEMETRY_TEXT}"					\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    case $? in
+	0) NEW_LINKTOLINK="yes"
+	   ;;
+	1) NEW_LINKTOLINK="no"
+	   ;;
+	*) NEW_LINKTOLINK=$CURRENT_LINKTOLINK
+	   ;;
+    esac
+}
+
 do_update_node_duplex() {
-    echo "doing do_new_duplex" >>$logfile
+    echo "doing do_update_node_duplex" >>$logfile
 
     # Array of duplex choices
-    duplex_modes=(							\
-		  "Half duplex with no telemetry (link)"		\
-		  "Half duplex with telemetry (hotspot)"		\
-		  "Full Duplex with telemetry (repeater)"		\
-		  "Full Duplex with telemetry, in cabinet repeat"	\
-		  "Full Duplex with telemetry, no repeat w/autopatch"	\
-		 )
+    duplex_modes=()
+    if [[ $CURRENT_DUPLEX -eq 0 ]]; then
+	if [[ $CURRENT_LINKTOLINK = "no" ]]; then
+	    duplex_modes+=("HALF/Full duplex with no telemetry (link)")
+	else
+	    duplex_modes+=("Half/FULL duplex with no telemetry (link)")
+	fi
+    else
+	duplex_modes+=("Half/Full duplex with no telemetry (link)")
+    fi
+    duplex_modes+=("Half duplex with telemetry (hotspot)")
+    duplex_modes+=("Full Duplex with telemetry (repeater)")
+    duplex_modes+=("Full Duplex with telemetry, in cabinet repeat")
+    duplex_modes+=("Full Duplex with telemetry, no repeat w/autopatch")
 
     newarr=()
     for i in ${!duplex_modes[@]}; do
@@ -285,9 +340,18 @@ do_update_node_duplex() {
     re=^[0-4]$
     if ! [[ $ANSWER =~ $re ]]; then
 	whiptail --msgbox "Duplex type must be a number between 0 and 4." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    elif [[ $ANSWER != $CURRENT_DUPLEX ]]; then
-	NEW_DUPLEX=$ANSWER
-	do_set_duplex
+    else
+	if [[ $ANSWER -eq 0 ]]; then
+	    do_update_telemetry
+	else
+	    NEW_LINKTOLINK=$CURRENT_LINKTOLINK
+	fi
+	if [[ "$CURRENT_DUPLEX"     != "$ANSWER"		||	\
+	      "$CURRENT_LINKTOLINK" != "$NEW_LINKTOLINK"		\
+	   ]]; then
+	    NEW_DUPLEX=$ANSWER
+	    do_set_duplex
+	fi
     fi
 }
 
@@ -296,8 +360,112 @@ do_set_duplex() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
-	# if present, remove "duplex" for this node
-	# ... and add new "duplex" for this node
+	# if changing to (or from) "Half/Full duplex with no telemetry",
+	# update the "linktolink" setting.
+	#
+	if [[ $NEW_DUPLEX -eq 0 ]]; then
+	    if [[ "$CURRENT_LINKTOLINK" != "$NEW_LINKTOLINK" ]]; then
+		#
+		# add "linktolink = (no | yes)"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^linktolink\s*=/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/a\\
+linktolink = $NEW_LINKTOLINK
+"										$CONFIG_DIR/rpt.conf
+		CURRENT_LINKTOLINK=$NEW_LINKTOLINK
+	    fi
+
+	    ADD_HANGTIME=0
+	    if [[ $CURRENT_HANGTIME -eq 2000 ]]; then
+		ADD_HANGTIME=1
+	    elif [[ $CURRENT_DUPLEX -eq 1 && CURRENT_HANGTIME -eq 400 ]]; then
+		ADD_HANGTIME=1
+	    fi
+	    if [[ $ADD_HANGTIME -eq 1 ]]; then
+		#
+		# add/change "hangtime = 100"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/a\\
+hangtime = 100
+"										$CONFIG_DIR/rpt.conf
+	    fi
+	elif [[ $CURRENT_DUPLEX -eq 0 ]]; then
+	    if [[ "$CURRENT_LINKTOLINK" = "yes" ]]; then
+		#
+		# remove "linktolink = yes"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^linktolink\s*=/d; }"	$CONFIG_DIR/rpt.conf
+		CURRENT_LINKTOLINK="no"
+	    fi
+
+	    if [[ $CURRENT_HANGTIME -eq 100 ]]; then
+		#
+		# remove "hangtime = 100"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	$CONFIG_DIR/rpt.conf
+	    fi
+	fi
+
+	#
+	# if changing to (or from) "Half-duplex w/telemetry", update the
+	# "wait_times" setting.
+	#
+	if [[ $NEW_DUPLEX -eq 1 ]]; then
+#	    grep -q "^\[wait-times_hd]"						$CONFIG_DIR/rpt.conf
+#	    if [[ $? -eq 0 && "$CURRENT_WAIT_TIMES" = "wait-times" ]]; then
+#		#
+#		# add "wait_times = wait-times_hd"
+#		#
+#		sed -i								\
+#		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	\
+#		    -e "/^\[$CURRENT_NODE]/a\\
+#wait_times = wait-times_hd
+#"										$CONFIG_DIR/rpt.conf
+#	    fi
+
+	    ADD_HANGTIME=0
+	    if [[ $CURRENT_HANGTIME -eq 2000 ]]; then
+		ADD_HANGTIME=1
+	    elif [[ $CURRENT_DUPLEX -eq 0 && CURRENT_HANGTIME -eq 100 ]]; then
+		ADD_HANGTIME=1
+	    fi
+	    if [[ $ADD_HANGTIME -eq 1 ]]; then
+		#
+		# add "hangtime = 400"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	\
+		    -e "/^\[$CURRENT_NODE]/a\\
+hangtime = 400
+"										$CONFIG_DIR/rpt.conf
+	    fi
+	elif [[ $CURRENT_DUPLEX -eq 1 ]]; then
+#	    grep -q "^\[wait-times]"						$CONFIG_DIR/rpt.conf
+#	    if [[ $? -eq 0 && "$CURRENT_WAIT_TIMES" = "wait-times_hd" ]]; then
+#		#
+#		# remove "wait_times = wait-times_hd"
+#		#
+#		sed -i								\
+#		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^wait_times\s*=/d; }"	$CONFIG_DIR/rpt.conf
+#	    fi
+
+	    if [[ $CURRENT_HANGTIME -eq 400 ]]; then
+		#
+		# remove "hangtime = 400"
+		#
+		sed -i								\
+		    -e "/^\[$CURRENT_NODE]/,/^\[/ { /^hangtime\s*=/d; }"	$CONFIG_DIR/rpt.conf
+	    fi
+	fi
+
+	#
+	# if present, remove "duplex" from this node
+	# ... and add new "duplex" to this node
 	#
 	sed	-i							\
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^duplex\s*=/d; }"	\
@@ -336,7 +504,7 @@ do_update_iax_bindport() {
 	    break
 	fi
 
-	whiptail --msgbox "The node number must be a number between 1 and 65535\n\nNote: the default port is 4569." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --msgbox "The port must be a number between 1 and 65535\n\nNote: the default port is 4569." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     if [[ $ANSWER -eq $CURRENT_BINDPORT ]]; then
@@ -386,31 +554,56 @@ do_set_iax_bindport() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_update_node_number() {
-    echo "doing do_update_node_number" >>$logfile
+do_query_node_number() {
+    echo "..doing do_query_node_number" >>$logfile
+
+    if [[ "$1" != "update" ]]; then
+	MSG="Enter new node number :"
+    else
+	MSG="The current node number is $CURRENT_NODE.\n\nEnter new node number :"
+    fi
 
     while true; do
 	calc_wt_size
 
-	ANSWER=$(whiptail						\
-		    --title "$TITLE"					\
-		    --inputbox "The current node number is $CURRENT_NODE.\n\nEnter new node number :"	\
-		    $MSGBOX_HEIGHT $MSGBOX_WIDTH			\
-		    "$CURRENT_NODE"					\
+	ANSWER=$(whiptail				\
+		    --title "$TITLE"			\
+		    --inputbox "$MSG"			\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH	\
+		    ""					\
 		    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
-	    return
+	    return 1
 	fi
 
-	re=^[0-9]\+$
-	if [[ $ANSWER =~ $re ]]; then
+	re=^[0-9]{4,6}$
+	if ! [[ $ANSWER =~ $re ]]; then
+	    whiptail --msgbox "The node number must have 4-6 digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ $ANSWER -lt 1000 ]]; then
+	    whiptail --msgbox "Private node numbers start at 1000." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ $ANSWER -ge 2000 && $ANSWER =~ ^1 ]]; then
+	    whiptail --msgbox "Registered node numbers cannot start with a \"1\"." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ ${nodes[@]} =~ $ANSWER ]]; then
+	    whiptail --msgbox "Node number \"$ANSWER\" is already defined, please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
 	    break
 	fi
-
-	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
-    if [[ $ANSWER == $CURRENT_NODE ]]; then
+    return 0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_update_node_number() {
+    echo "doing do_update_node_number" >>$logfile
+
+    do_query_node_number update
+    if [[ $? -ne 0 ]]; then
+	return
+    fi
+
+    if [[ $ANSWER = $CURRENT_NODE ]]; then
 	return
     fi
 
@@ -430,15 +623,43 @@ do_node_rename() {
 	-e "/^rxchannel\s*=\s*Radio\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	\
 	-e "/^rxchannel\s*=\s*Voter\/$CURRENT_NODE\s*/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt.conf
 
-    # Update node registration
-    #
-    # Note:
-    # * The template node has a node # of "1234" and not "1999". Fix this first :-)
-    # * Then, change node number.
-    #
-    sed -i										\
-	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:/${CURRENT_NODE}:/"			\
-	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
+    if [[ $NEW_NODE -lt 2000 && $CURRENT_STATPOST != "No" ]]; then
+	# disable statpost for private node
+	SAVE_NODE=$CURRENT_NODE
+	CURRENT_NODE=$NEW_NODE
+	NEW_STATPOST="No"
+	do_set_statpost
+	CURRENT_NODE=$SAVE_NODE
+    fi
+
+    # Update appropriate rpt_http_registrations.conf lines
+    if [[ $NEW_NODE -ge 2000 ]]; then
+	#
+	# Update node registration
+	#
+	# Note:
+	# * The template node has a node # of "1234" and not "1999". Fix this first :-)
+	# * Then, change node number.
+	#
+	sed -i										\
+	    -e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:/"	\
+	    -e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
+    else
+	#
+	# Do not register private nodes
+	#
+	REM_NODE=$CURRENT_NODE
+	do_node_remove_registration
+
+	#
+	# and clean up some cruft
+	#
+	egrep --quiet -e "^register.*=>*\s*1234:abcdef@"				$CONFIG_DIR/rpt_http_registrations.conf
+	if [ $? -eq 0 ]; then
+	    REM_NODE=1234
+	    do_node_remove_registration
+	fi
+    fi
 
     # Update appropriate extensions.conf lines
     sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/extensions.conf
@@ -504,25 +725,25 @@ do_node_rename() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_update_node_password() {
-    echo "doing do_update_node_password" >>$logfile
+do_query_node_password() {
+    echo "..doing do_query_node_password" >>$logfile
 
     while true; do
 	calc_wt_size
 
 	ANSWER="$CURRENT_PASSWORD"
-	if [[ "$CURRENT_PASSWORD" == "=Not Set=" ]]; then
+	if [[ "$CURRENT_PASSWORD" = "=Not Set=" ]]; then
 	    ANSWER=""
 	fi
 
 	ANSWER=$(whiptail							\
 		    --title "$TITLE"						\
-		    --inputbox "Enter the password for node $CURRENT_NODE :"	\
+		    --inputbox "To register node $CURRENT_NODE with AllStarLink we need the password from \"www.allstarlink.org\", \"Portal\", \"Node Settings\".\n\nEnter the node password :"	\
 		    $MSGBOX_HEIGHT $MSGBOX_WIDTH				\
 		    "$ANSWER"							\
 		    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
-	    return
+	    return 1
 	fi
 
 	re=^[0-9a-zA-Z_-]{6,}$
@@ -535,7 +756,20 @@ do_update_node_password() {
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
-    if [[ "$ANSWER" == "$CURRENT_PASSWORD" ]]; then
+    return 0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_update_node_password() {
+    echo "doing do_update_node_password" >>$logfile
+
+    do_query_node_password
+    if [[ $? -ne 0 ]]; then
+	return
+    fi
+
+    if [[ "$ANSWER" = "$CURRENT_PASSWORD" ]]; then
 	return
     fi
 
@@ -546,7 +780,18 @@ do_update_node_password() {
 do_node_set_password() {
     echo "doing do_node_set_password" >>$logfile
 
-    # If missing, add registration
+    # If private node, remove the registration
+    if [[ $CURRENT_NODE -lt 2000 ]]; then
+	REM_NODE=$CURRENT_NODE
+	do_node_remove_registration
+	return
+    fi
+
+    if [[ "$CURRENT_PASSWORD" = "=Not Set=" ]]; then
+	CURRENT_PASSWORD=""
+    fi
+
+    # Check registration, add if missing
     egrep									\
 	--quiet									\
 	-e "^register.*=>*\s*1234:abcdef@"					\
@@ -555,11 +800,12 @@ do_node_set_password() {
 	do_node_add_registration
     fi
 
+    #
     # Update node registration
     #
     # Note:
     # * The template node has a node # of "1234" and not "1999". Fix this first :-)
-    # * New nodes will have the register statement commented. Remove it first then change node password.
+    # * Then, change node password.
     #
     sed -i											\
 	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
@@ -587,19 +833,31 @@ do_node_set_password() {
 do_update_node_statpost() {
     echo "doing do_update_node_statpost" >>$logfile
 
-    # un/comments the statpost command in rpt.conf
-    whiptail								\
-	--title "$TITLE"						\
-	--yesno "Enabling status posting to AllStarLink.org?"		\
-	$MSGBOX_HEIGHT $MSGBOX_WIDTH
-    case $? in
-	0) NEW_STATPOST="Yes"
-	   ;;
-	1) NEW_STATPOST="No"
-	   ;;
-	*) return
-	   ;;
-    esac
+    if [[ $CURRENT_NODE -ge 2000 ]]; then
+	# un/comment the statpost command in rpt.conf
+	whiptail								\
+	    --title "$TITLE"						\
+	    --yesno "Enabling status posting to AllStarLink.org?"		\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	case $? in
+	    0)  NEW_STATPOST="Yes"
+		;;
+	    1)  NEW_STATPOST="No"
+		;;
+	    *)  return
+		;;
+	esac
+    else
+	whiptail								\
+	    --title "$TITLE"							\
+	    --msgbox "Status posting cannot be enabled for private nodes."	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	NEW_STATPOST="No"
+    fi
+
+    if [[ $CURRENT_STATPOST = $NEW_STATPOST ]]; then
+	return
+    fi
 
     do_set_statpost
 }
@@ -609,12 +867,12 @@ do_set_statpost() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
-	# if present, remove "statpost" for this node
+	# if present, remove "statpost" from this node
 	#
 	sed -i -e "/^\[$CURRENT_NODE]/,/^\[/ { /^statpost_url\s*=/d; }"	$CONFIG_DIR/rpt.conf
 
 	if [ $NEW_STATPOST = "Yes" ]; then
-	    # if enabled, add "statpost" for this node
+	    # if enabled, add "statpost" to this node
 	    sed -i -e "/^\[$CURRENT_NODE]/a\\
 statpost_url = http:\/\/stats.allstarlink.org\/uhandler
 "									$CONFIG_DIR/rpt.conf
@@ -656,7 +914,7 @@ do_update_ami_secret() {
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
-    if [[ $ANSWER == $CURRENT_AMI_SECRET ]]; then
+    if [[ "$ANSWER" = "$CURRENT_AMI_SECRET" ]]; then
 	return
     fi
 
@@ -681,37 +939,87 @@ do_set_ami_secret() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_update_node_interface() {
-    echo "doing do_interface_type" >>$logfile
+do_query_node_interface() {
+    echo "..doing do_query_node_interface ${1}" >>$logfile
 
-    ## interface menu
-    ANSWER=$(whiptail								\
-		--title "$TITLE"						\
-		--menu "Select Radio Interface"					\
-		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT				\
-		--ok-button "Select"						\
-		--cancel-button "Back"						\
-		"1" "SimpleUSB    : CM1xx USB Cards no/DSP (URIx or RA-40)"	\
-		"2" "USBRadio     : CM1xx USB Cards with DSP (URIx or RA-40)"	\
-		"3" "RTCM         : Radio Thin Client or Voter Boards"		\
-		"4" "Dahdi/pseudo : No radio interface or HUB node"		\
-		"5" "USRP"							\
+    interface_types=()
+    interface_types+=("1" "SimpleUSB    : CM1xx USB Cards no/DSP (URIx or RA-40)"	)
+    interface_types+=("2" "USBRadio     : CM1xx USB Cards with DSP (URIx or RA-40)"	)
+    if [[ "$1" = "full" ]]; then
+	interface_types+=("3" "RTCM         : Radio Thin Client or Voter Boards"	)
+	interface_types+=("4" "Dahdi/pseudo : No radio interface or HUB node"		)
+	interface_types+=("5" "USRP"							)
+    fi
+
+    LABEL_CANCEL="Back"
+    if [[ "$1" = "short" ]]; then
+	LABEL_CANCEL="Skip"
+    fi
+
+    INTERFACE_SELECTION_SKIPPED=0
+
+    DEFAULT_ITEM=0
+    case "$CURRENT_INTERFACE_TYPE" in
+	"SimpleUSB" ) DEFAULT_ITEM=1	;;
+	"USBRadio"  ) DEFAULT_ITEM=2	;;
+	"Voter"     ) DEFAULT_ITEM=3	;;
+	"Pseudo"    ) DEFAULT_ITEM=4	;;
+	"USRP"      ) DEFAULT_ITEM=5	;;
+    esac
+
+    ANSWER=$(whiptail					\
+		--title "$TITLE"			\
+		--menu "Select Radio Interface"		\
+		--default-item=$DEFAULT_ITEM		\
+		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
+		--ok-button "Select"			\
+		--cancel-button "$LABEL_CANCEL"		\
+		"${interface_types[@]}"			\
 		3>&1 1>&2 2>&3)
-    if [[ $? -ne 0 ]]; then
-	return
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	if [[ $RC -eq 1 && "$LABEL_CANCEL" = "Skip" ]]; then
+	    INTERFACE_SELECTION_SKIPPED=1
+	    ANSWER=1
+	else
+	    return 1
+	fi
     fi
 
     case "$ANSWER" in
-	1) do_node_set_simpleusb	;;
-	2) do_node_set_usbradio		;;
-	3) do_node_set_voter		;;
-	4) do_node_set_pseudo		;;
-	5) do_node_set_usrp		;;
+	1) ANSWER="SimpleUSB"	;;
+	2) ANSWER="USBRadio"	;;
+	3) ANSWER="Voter"	;;
+	4) ANSWER="Pseudo"	;;
+	5) ANSWER="USRP"	;;
+    esac
+
+    return 0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_update_node_interface() {
+    echo "doing do_interface_type" >>$logfile
+
+    do_query_node_interface full
+    if [[ $? -ne 0 ]]; then
+	return 1
+    fi
+
+    case "$ANSWER" in
+	"SimpleUSB" ) do_node_set_simpleusb	;;
+	"USBRadio"  ) do_node_set_usbradio	;;
+	"Voter"     ) do_node_set_voter		;;
+	"Pseudo"    ) do_node_set_pseudo	;;
+	"USRP"      ) do_node_set_usrp		;;
 	*) whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH 1 ;;
     esac
 }
 
 do_noload_chan_modules() {
+    echo "..doing do_noload_chan_modules" >>$logfile
+
     # set common [app_rpt] channel modules to noload
     sed -i									\
 	-e "/^load\s*=>\s*chan_simpleusb/ s/load/noload/"			\
@@ -722,6 +1030,8 @@ do_noload_chan_modules() {
 }
 
 do_load_chan_module() {
+    echo "....doing do_load_chan_module ${1}" >>$logfile
+
     # load specific [app_rpt] channel module
     MODULE="chan_$1"
 
@@ -729,6 +1039,8 @@ do_load_chan_module() {
 }
 
 do_load_chan_modules() {
+    echo "..doing do_load_chan_modules" >>$logfile
+
     # load all [app_rpt] channel modules referenced in the configuration
 
     SAVE_NODE=$CURRENT_NODE
@@ -765,6 +1077,8 @@ do_load_chan_modules() {
 }
 
 do_update_chan_modules() {
+    echo "doing do_update_chan_modules" >>$logfile
+
     # Update modules
     do_noload_chan_modules
     do_load_chan_modules
@@ -776,8 +1090,8 @@ do_set_rxchannel() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
-	# if present, remove "rxchannel" for this node
-	# ... and add new "rxchannel" for this node
+	# if present, remove "rxchannel" from this node
+	# ... and add new "rxchannel" to this node
 	#
 	sed	-i								\
 		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^rxchannel\s*=/d; }"		\
@@ -790,7 +1104,7 @@ rxchannel = $RXCHANNEL
 do_node_set_simpleusb() {
     echo "doing do_node_set_simpleusb" >>$logfile
 
-    if [ $CURRENT_INTERFACE_TYPE == "SimpleUSB" ]; then
+    if [ "$CURRENT_INTERFACE_TYPE" = "SimpleUSB" ]; then
 	return
     fi
 
@@ -887,7 +1201,7 @@ txmixaset = 500
 do_node_set_usbradio() {
     echo "doing do_node_set_usbradio" >>$logfile
 
-    if [ $CURRENT_INTERFACE_TYPE == "USBRadio" ]; then
+    if [ "$CURRENT_INTERFACE_TYPE" = "USBRadio" ]; then
 	return
     fi
 
@@ -1015,7 +1329,7 @@ rxsquelchadj = 500
 do_node_set_voter() {
     echo "doing do_node_set_voter" >>$logfile
 
-    if [ $CURRENT_INTERFACE_TYPE == "Voter" ]; then
+    if [ "$CURRENT_INTERFACE_TYPE" = "Voter" ]; then
 	return
     fi
 
@@ -1055,7 +1369,7 @@ do_node_set_voter() {
 do_node_set_pseudo() {
     echo "doing do_set_pseudo" >>$logfile
 
-    if [ $CURRENT_INTERFACE_TYPE == "Pseudo" ]; then
+    if [ "$CURRENT_INTERFACE_TYPE" = "Pseudo" ]; then
 	return
     fi
 
@@ -1074,7 +1388,7 @@ do_node_set_pseudo() {
 do_node_set_usrp() {
     echo "doing do_node_set_usrp" >>$logfile
 
-    if [ $CURRENT_INTERFACE_TYPE == "USRP" ]; then
+    if [ "$CURRENT_INTERFACE_TYPE" = "USRP" ]; then
 	return
     fi
 
@@ -1118,6 +1432,10 @@ get_node_settings () {
     CURRENT_INTERFACE_TYPE=""
     CURRENT_PASSWORD=""
     CURRENT_STATPOST="No"
+
+    CURRENT_HANGTIME="5000"
+    CURRENT_LINKTOLINK="no"
+    CURRENT_WAIT_TIMES="wait-times"
 
     AWK_TMP=$(mktemp)
 
@@ -1170,6 +1488,15 @@ get_node_settings () {
 	    "statpost_url" )
 		CURRENT_STATPOST="Yes"
 		;;
+	    "hangtime" )
+		CURRENT_HANGTIME=$value
+		;;
+	    "linktolink" )
+		CURRENT_LINKTOLINK=$value
+		;;
+	    "wait_times" )
+		CURRENT_WAIT_TIMES=$value
+		;;
 	    * )
 		;;
 	esac
@@ -1217,7 +1544,7 @@ do_limit_nodes_add() {
 	    break
 	fi
 
-	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --msgbox "Please enter a valid node number, usually 4 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     case "$ACTION" in
@@ -1255,7 +1582,7 @@ do_limit_nodes_remove() {
 	    break
 	fi
 
-	whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --msgbox "Please enter a valid node number, usually 4 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     case "$ACTION" in
@@ -1536,13 +1863,17 @@ do_allstar_node_setup_menu() {
 	get_node_settings
 
 	DISPLAY_CALLSIGN="$CURRENT_CALLSIGN"
-	if [[ "$CURRENT_CALLSIGN" == "NOTSET" ]]; then
+	if [[ "$CURRENT_CALLSIGN" = "NOTSET" ]]; then
 	    DISPLAY_CALLSIGN="*** Not Set ***     <--"
 	fi
 
 	DISPLAY_PASSWORD="$CURRENT_PASSWORD"
-	if [[ "$CURRENT_PASSWORD" == "=Not Set=" ]]; then
-	    DISPLAY_PASSWORD=""
+	if [[ "$CURRENT_PASSWORD" = "=Not Set=" ]]; then
+	    if [[ $CURRENT_NODE -ge 2000 ]]; then
+		DISPLAY_PASSWORD="*** Not Set ***     <--"
+	    else
+		DISPLAY_PASSWORD=""
+	    fi
 	fi
 
 	CHOICE=$(whiptail					\
@@ -1596,7 +1927,140 @@ do_allstar_node_setup_menu() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
+do_query_node_defaults() {
+    echo "do_query_node_defaults" >>$logfile
+
+    CURRENT_PASSWORD="=Not Set="
+    if [[ $CURRENT_NODE -ge 2000 ]]; then
+	do_query_node_password
+	if [[ $? -ne 0 ]]; then
+	    return 1
+	fi
+
+	NEW_PASSWORD=$ANSWER
+    else
+	NEW_PASSWORD=""
+    fi
+
+    NEW_INTERFACE_TYPE=""
+    NEW_DUPLEX=""
+    NEW_LINKTOLINK=$CURRENT_LINKTOLINK
+
+    ANSWER=$(whiptail									\
+		--title "$TITLE"							\
+		--menu "What configuration settings should we use for node $CURRENT_NODE?"	\
+		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT					\
+		--ok-button "Select"							\
+		"1" "Hotspot (half duplex) with courtesy tones"				\
+		"2" "Hotspot (half duplex) with no courtesy tones"			\
+		"3" "Repeater or full duplex hotspot"					\
+		"4" "HUB w/no radio"							\
+		"0" "None of the above (show all settings)"				\
+		3>&1 1>&2 2>&3)
+    if [[ $? -ne 0 ]]; then
+	return 1
+    fi
+
+    case "$ANSWER" in
+	1)  # Hotspot (half duplex) with courtesy tones
+	    NEW_INTERFACE_TYPE="SimpleUSB"
+	    NEW_DUPLEX=1
+	    ;;
+	2)  # Hotspot (half duplex) with no courtesy tones
+	    NEW_INTERFACE_TYPE="SimpleUSB"
+	    NEW_DUPLEX=0
+	    ;;
+	3)  # Repeater or full duplex hotspot
+	    NEW_INTERFACE_TYPE="SimpleUSB"
+	    NEW_DUPLEX=2
+	    ;;
+	4)  # Hub w/no radio
+	    NEW_INTERFACE_TYPE="Pseudo"
+	    NEW_DUPLEX=2
+	    ;;
+	0)  # Use [node] default settings
+	    ;;
+	*)  whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    ;;
+    esac
+
+    case "$ANSWER" in
+	1 | 2 | 3)
+	    do_query_node_interface short
+	    if [[ $? -ne 0 ]]; then
+		return 1
+	    fi
+
+	    NEW_INTERFACE_TYPE="$ANSWER"
+	    ;;
+    esac
+
+    if [[ -n "$NEW_INTERFACE_TYPE" ]]; then
+	CURRENT_CALLSIGN="NOTSET"
+	do_query_node_callsign
+	if [[ $? -ne 0 ]]; then
+	    return 1
+	fi
+
+	NEW_CALLSIGN="${ANSWER^^}"
+    fi
+
+    return 0
+}
+
+do_node_set_defaults() {
+    echo "do_node_set_defaults" >>$logfile
+
+    if [[ -n "$NEW_INTERFACE_TYPE" ]]; then
+	CURRENT_INTERFACE_TYPE="?"
+	case "$NEW_INTERFACE_TYPE" in
+	    "SimpleUSB" )
+		do_node_set_simpleusb
+		;;
+	    "USBRadio" )
+		do_node_set_usbradio
+		;;
+	    "Voter" )
+		do_node_set_voter
+		;;
+	    "Pseudo" )
+		do_node_set_pseudo
+		;;
+	    "USRP" )
+		do_node_set_usrp
+		;;
+	esac
+    fi
+
+    if [[ -n "$NEW_DUPLEX" ]]; then
+	do_set_duplex
+    fi
+
+    if [[ $CURRENT_PASSWORD != $NEW_PASSWORD ]]; then
+	do_node_set_password
+    fi
+
+    if [[ $CURRENT_CALLSIGN != $NEW_CALLSIGN ]]; then
+	do_node_set_callsign
+    fi
+
+    if [[ -n "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
+	if [[ $CURRENT_NODE -ge 2000 ]]; then
+	    NEW_STATPOST="Yes"
+	    do_set_statpost
+	fi
+    fi
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
 do_node_add_registration() {
+    echo "do_node_add_registration" >>$logfile
+
+    if [[ "$CURRENT_PASSWORD" = "=Not Set=" ]]; then
+	CURRENT_PASSWORD=""
+    fi
+
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
 	# add the registration
 	ex $CONFIG_DIR/rpt_http_registrations.conf		<<_END_OF_INPUT
@@ -1611,35 +2075,36 @@ _END_OF_INPUT
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
 }
 
+do_node_remove_registration() {
+    echo "do_node_remove_registration" >>$logfile
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
+	# remove the per-node registration
+	sed -i -e "/^\[registrations]/,/^\[/ { /^register\s*=>\s*${REM_NODE}/d; }"	\
+								$CONFIG_DIR/rpt_http_registrations.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
+}
+
 do_node_add() {
     echo "do_node_add" >>$logfile
 
-    while true; do
-	calc_wt_size
+    do_query_node_number add
+    if [[ $? -ne 0 ]]; then
+	return
+    fi
 
-	ANSWER=$(whiptail					\
-		    --title "$TITLE"				\
-		    --inputbox "Enter new node number :"	\
-		    $MSGBOX_HEIGHT $MSGBOX_WIDTH		\
-		    ""						\
-		    3>&1 1>&2 2>&3)
-	if [[ $? -ne 0 ]]; then
-	    return
-	fi
+    CURRENT_NODE=$ANSWER
 
-	re=^[0-9]\+$
-	if ! [[ $ANSWER =~ $re ]]; then
-	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	elif [[ ${nodes[@]} =~ $ANSWER ]]; then
-	    whiptail --msgbox "Node number \"$ANSWER\" is already defined, please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	else
-	    CURRENT_NODE=$ANSWER
-	    if [ -z "$CURRENT_PASSWORD" ]; then
-		CURRENT_PASSWORD="abcdef"
-	    fi
-	    break
-	fi
-    done
+    if [[ $ANSWER -ge 2000 ]]; then
+	CURRENT_PASSWORD="abcdef"
+    else
+	CURRENT_PASSWORD=""
+    fi
+
+    do_query_node_defaults
+    if [[ $? -ne 0 ]]; then
+	return
+    fi
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	# add the per-node category
@@ -1669,10 +2134,17 @@ _END_OF_INPUT
 
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
-    do_node_add_registration
+    if [[ -z "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
+	# if using [node-main] template
+	do_update_chan_modules
+    else
+	# if using "selected" defaults
+	do_node_set_defaults
+    fi
 
-    # Update modules
-    do_update_chan_modules
+    if [[ $CURRENT_NODE -ge 2000 ]]; then
+	do_node_add_registration
+    fi
 
     update_file_permissions			\
 	$CONFIG_DIR/modules.conf		\
@@ -1681,6 +2153,17 @@ _END_OF_INPUT
 
     AST_RECONFIG=1
     AST_RESTART=1
+
+    if [[ -n "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
+	if [[ $INTERFACE_SELECTION_SKIPPED -eq 0 ]]; then
+	    case "$NEW_INTERFACE_TYPE" in
+		"SimpleUSB" | "USBRadio" )
+		    do_interface_tune_cli
+		    ;;
+	    esac
+	    return
+	fi
+    fi
 
     # ... and let's setup the new node too!
     do_allstar_node_setup_menu
@@ -1704,7 +2187,7 @@ do_node_remove() {
 
 	re=^[0-9]\+$
 	if ! [[ $ANSWER =~ $re ]]; then
-	    whiptail --msgbox "The node number must be a number, usually 3 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    whiptail --msgbox "Please enter a valid node number, usually 4 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	elif [[ ! ${nodes[@]} =~ $ANSWER ]]; then
 	    whiptail --msgbox "There is no configuration for node number \"$ANSWER\", please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	else
@@ -1721,11 +2204,7 @@ do_node_remove() {
 	sed -i -e "/^\[nodes]/,/^\[/ { /^${REM_NODE}\s*=/d }"	$CONFIG_DIR/rpt.conf
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
-    TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
-	# remove the per-node registration
-	sed -i -e "/^\[registrations]/,/^\[/ { /^register\s*=>\s*${REM_NODE}/d; }"	\
-								$CONFIG_DIR/rpt_http_registrations.conf
-    TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
+    do_node_remove_registration
 
     # Remove the [node] from the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
@@ -1759,6 +2238,8 @@ do_node_remove() {
 do_allstar_node_select_menu() {
     echo "do_allstar_node_select_menu" >>$logfile
 
+    DEFAULT_ITEM=1
+
     while true; do
 	calc_wt_size
 
@@ -1773,8 +2254,51 @@ do_allstar_node_select_menu() {
 
 	    # check if the [template] node has been updated
 	    get_node_settings
-	    if [[ "$CURRENT_PASSWORD" == "=Not Set=" && $CURRENT_CALLSIGN == "NOTSET" ]]; then
+	    if [[ "$CURRENT_PASSWORD" = "=Not Set=" && $CURRENT_CALLSIGN = "NOTSET" ]]; then
 		# if not [yet] modified
+
+		do_query_node_number first
+		if [[ $? -ne 0 ]]; then
+		    return
+		fi
+
+		SAVE_NODE=$CURRENT_NODE
+		CURRENT_NODE=$ANSWER
+
+		do_query_node_defaults
+		if [[ $? -ne 0 ]]; then
+		    return
+		fi
+
+		if [[ $SAVE_NODE != $CURRENT_NODE ]]; then
+		    NEW_NODE=$CURRENT_NODE
+		    CURRENT_NODE=$SAVE_NODE
+		    do_node_rename
+		    CURRENT_NODE=$NEW_NODE
+		    get_node_settings
+		fi
+
+		if [[ $ANSWER -ge 2000 ]]; then
+		    CURRENT_PASSWORD="abcdef"
+		else
+		    CURRENT_PASSWORD=""
+		fi
+
+		if [[ -n "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
+		    # apply the defaults for the selected type
+		    do_node_set_defaults
+
+		    if [[ $INTERFACE_SELECTION_SKIPPED -eq 0 ]]; then
+			case "$NEW_INTERFACE_TYPE" in
+			    "SimpleUSB" | "USBRadio" )
+				do_interface_tune_cli
+				;;
+			esac
+			return
+		    fi
+		fi
+
+		# show the initial node
 		do_allstar_node_setup_menu
 		return
 	    fi
@@ -1786,15 +2310,13 @@ do_allstar_node_select_menu() {
 	    newarr+=("$((i + 1))" "Update node ${nodes[$i]}")
 	done
 
-	if [[ ${#newarr[@]} -gt 0 ]]; then
-	    SELECTED="1"
-	else
-	    SELECTED="A"
+	if [[ ${#newarr[@]} -eq 0 ]]; then
+	    DEFAULT_ITEM="A"
 	fi
 
-	ANSWER=$(whiptail					\
+	CHOICE=$(whiptail					\
 		    --title "$TITLE"				\
-		    --default-item "$SELECTED"			\
+		    --default-item $DEFAULT_ITEM		\
 		    --menu "AllStar Node Select Menu"		\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
 		    --ok-button "Select"			\
@@ -1808,18 +2330,24 @@ do_allstar_node_select_menu() {
 	fi
 
 	re=^[0-9]\+$
-	if [[ $ANSWER =~ $re ]]; then
-	    CURRENT_NODE="${nodes[$((ANSWER - 1))]}"
+	if [[ $CHOICE =~ $re ]]; then
+	    CURRENT_NODE="${nodes[$((CHOICE - 1))]}"
 	    do_allstar_node_setup_menu
+	    DEFAULT_ITEM=$CHOICE
 	    continue
 	fi
 
-	case "$ANSWER" in
-	    A)	do_node_add	;;
-	    R)	do_node_remove	;;
-	    *)	whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	case "$CHOICE" in
+	    A)	do_node_add
+		CHOICE=${#nodes[@]}
+		;;
+	    R)	do_node_remove
+		;;
+	    *)	whiptail --msgbox "$CHOICE is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 		;;
 	esac
+
+	DEFAULT_ITEM=$CHOICE
     done
 }
 
@@ -1851,17 +2379,17 @@ EOT
 do_main_menu() {
     echo "do_main_menu" >>$logfile
 
-    LABEL_CANCEL="Exit"
-    if [[ $SUB_MENU -ne 0 ]]; then
-	LABEL_CANCEL="Back"
-    fi
-
     while true; do
 	calc_wt_size
 
 	NEED_RESTART=""
 	if [[ $AST_RESTART -ne 0 ]]; then
 	    NEED_RESTART="<-- Needed"
+	fi
+
+	LABEL_CANCEL="Exit"
+	if [[ $SUB_MENU -ne 0 ]]; then
+	    LABEL_CANCEL="Back"
 	fi
 
 	ANSWER=$(whiptail						\
@@ -1906,12 +2434,17 @@ do_main_menu() {
 do_exit() {
     echo "doing do_exit" >>$logfile
 
+    if [[ $ASL_UPDATED -ne 0 ]]; then
+	sync
+	ASL_UPDATED=0
+    fi
+
     if [[ $AST_RESTART -ne 0 ]]; then
 	whiptail				\
 	    --title "$TITLE"			\
 	    --yesno "Asterisk must be restarted to make your changes active.\n\nAre you sure you want to exit now?"	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	if [[ $? -eq 0 ]]; then
+	if [[ $? -eq 0 || $? -eq 255 ]]; then
 	    exit 0
 	fi
     else
