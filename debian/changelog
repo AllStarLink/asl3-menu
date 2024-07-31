@@ -1,3 +1,11 @@
+asl3-menu (1.7-1) stable; urgency=medium
+
+  * Allow additional files to be included in ASL backups (#45)
+  * Add "Restart" option to the expert config menu (#47)
+  * Menu improvements (#51)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Wed, 31 Jul 2024 13:16:46 -0400
+
 asl3-menu (1.6-1) stable; urgency=medium
 
   * Changing AMI password should update allmon3.ini
