@@ -20,6 +20,11 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
+	-r)
+      APTLY_REPO="asl3-$2"
+      shift
+      shift	
+      ;;
 	-*|--*|*)
       echo "Unknown option $1"
 	  shift
@@ -90,15 +95,17 @@ gh release upload -R AllStarLink/asl3-menu $GH_REL $ALL_PKG_ROOT/_debs/*.deb
 
 docker image rm --force $D_TAG
 
+APTLY_USER="${APTLY_API_USER}:${APTLY_API_PASS}"
+
 find $ALL_PKG_ROOT/_debs/*.deb -name "*.deb" | \
-    xargs -I {} -d '\n' curl --fail --user ${APTLY_USER} \
-    -X POST -F 'file=@"{}"' \
-     https://repo-admin.allstarlink.org/api/files/${APTLY_REPO}-${OPERATING_SYSTEMS}
+	xargs -I {} -d '\n' curl --fail --user ${APTLY_USER} \
+	-X POST -F 'file=@"{}"' \
+	 https://repo-admin.allstarlink.org/api/files/${APTLY_REPO}-${OPERATING_SYSTEMS}
 
 curl --fail --user ${APTLY_USER} -X POST \
-    https://repo-admin.allstarlink.org/api/repos/${APTLY_REPO}/file/${APTLY_REPO}-${OPERATING_SYSTEMS}
+	https://repo-admin.allstarlink.org/api/repos/${APTLY_REPO}/file/${APTLY_REPO}-${OPERATING_SYSTEMS}
 
 curl --fail --user ${APTLY_USER} -X PUT -H "content-Type: application/json" \
-    --data "{\"Signing\": {\"Batch\": true, \"Passphrase\": \"${APTLY_GPG_PASSPHRASE}\"}}" \
-    "https://repo-admin.allstarlink.org/api/publish/:./${OPERATING_SYSTEMS}"
+	--data "{\"Signing\": {\"Batch\": true, \"Passphrase\": \"${APTLY_GPG_PASSPHRASE}\"}}" \
+	"https://repo-admin.allstarlink.org/api/publish/:./${OPERATING_SYSTEMS}"
 
