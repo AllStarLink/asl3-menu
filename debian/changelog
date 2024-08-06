@@ -1,3 +1,9 @@
+asl3-menu (1.8-1) stable; urgency=medium
+
+  * Nodes must have an ["idrecording"] callsign ID (#55) 
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Tue, 06 Aug 2024 17:04:43 -0400
+
 asl3-menu (1.7-1) stable; urgency=medium
 
   * Allow additional files to be included in ASL backups (#45)
