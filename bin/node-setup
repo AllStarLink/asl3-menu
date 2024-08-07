@@ -206,12 +206,12 @@ do_query_node_callsign() {
 	fi
 
 	re=^[0-9A-Za-z/-]{3,}$
-	if [[ $ANSWER =~ $re || -z "$ANSWER" ]]; then
+	if [[ $ANSWER =~ $re ]]; then
 	    break
 	fi
 
 	whiptail	\
-	    --msgbox "A call sign, if provided, may contain only letters and numbers. The call must be 3 or more characters in length."	\
+	    --msgbox "A call sign may contain only letters and numbers. The call must be 3 or more characters in length."	\
 	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
