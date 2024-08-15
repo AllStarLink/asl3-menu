@@ -7,4 +7,4 @@
 # Fixes by WA3WCO 2/01/2024
 #   Now executes asl-backup-menu to do the work
 
-/usr/sbin/asl-backup-menu backup
+/usr/bin/asl-backup-menu backup
