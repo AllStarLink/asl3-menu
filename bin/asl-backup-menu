@@ -681,6 +681,7 @@ do_remove_local() {
 			  --scrolltext					\
 			  --checklist "Select the backup(s) to remove (use tab and arrow keys to scroll, space bar to select/deselect)"	\
 			  --ok-button "Remove"				\
+			  --separate-output				\
 			  $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
 			  "${BACKUP_LIST[@]}"				\
 			  3>&1 1>&2 2>&3)
@@ -690,8 +691,6 @@ do_remove_local() {
     #echo ${BACKUP_ARCHIVES[@]}
 
     for BACKUP_ARCHIVE in $BACKUP_ARCHIVES; do
-	BACKUP_ARCHIVE="${BACKUP_ARCHIVE#\"}"
-	BACKUP_ARCHIVE="${BACKUP_ARCHIVE%%\"}"
 	echo "Removing $BACKUP_ARCHIVE"
 	rm $BACKUP_ARCHIVE
 	RC=$?
