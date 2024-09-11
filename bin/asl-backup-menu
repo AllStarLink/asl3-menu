@@ -255,9 +255,11 @@ do_backup_local_create() {
     do_setup_include_list
 
     TAR_INCLUDE=$(mktemp)
-    cat "$INCLUDE_LIST"			\
-    | sed -e 's/^\s+//'			\
-    | grep -v -e "^#" -e "^$"		\
+
+    sed -e 's/^\s+//'			\
+	-e '/^#/d'			\
+	-e '/^$/d'			\
+	"$INCLUDE_LIST"			\
     | while read path;
     do
 	RP=$(realpath "/$path" 2>/dev/null)
@@ -487,9 +489,10 @@ do_restore_local_select() {
 
     # build array of /etc/asterisk/*.tgz files
     shopt -s nullglob
-    BACKUP_FILES=($(ls -1 -t $BACKUP_DIR/*.tgz))
+    BACKUP_FILES=($(ls -1 -t $BACKUP_DIR/*.tgz /dev/null | grep -v /dev/null))
     #echo ${#BACKUP_FILES[@]}
     #echo ${BACKUP_FILES[@]}
+
     if [[ ${#BACKUP_FILES[@]} -eq 0 ]]; then
 	whiptail --msgbox "No backups available to restore." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	return 1
@@ -512,7 +515,7 @@ do_restore_local_select() {
     BACKUP_ARCHIVE=$(whiptail						\
 			 --title "$TITLE"				\
 			 --scrolltext					\
-			 --radiolist "Select the backup to restore (use arrow keys to scroll, space bar to select)"	\
+			 --radiolist "Select the backup to restore (use tab and arrow keys to scroll, space bar to select)"	\
 			 --ok-button "Restore"				\
 			 $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
 			 "${BACKUP_LIST[@]}"				\
@@ -628,7 +631,7 @@ do_restore_asl_select() {
     ASL_ARCHIVE=$(whiptail						\
 		      --title "$TITLE"					\
 		      --scrolltext					\
-		      --radiolist "Select the backup (on \"$SAVEHOST\") to restore (use arrow keys to scroll, space bar to select)"	\
+		      --radiolist "Select the backup (on \"$SAVEHOST\") to restore (use tab and arrow keys to scroll, space bar to select)"	\
 		      --ok-button "Restore"				\
 		      $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
 		      "${ASL_LIST[@]}"					\
@@ -656,7 +659,7 @@ do_remove_local() {
 
     # build array of /etc/asterisk/*.tgz files
     shopt -s nullglob
-    BACKUP_FILES=($(ls -1 -t $BACKUP_DIR/*.tgz))
+    BACKUP_FILES=($(ls -1 -t $BACKUP_DIR/*.tgz /dev/null | grep -v /dev/null))
     #echo ${#BACKUP_FILES[@]}
     #echo ${BACKUP_FILES[@]}
 
@@ -676,7 +679,7 @@ do_remove_local() {
     BACKUP_ARCHIVES=$(whiptail						\
 			  --title "$TITLE"				\
 			  --scrolltext					\
-			  --checklist "Select the backup(s) to remove (use arrow keys to scroll, space bar to select/deselect)"	\
+			  --checklist "Select the backup(s) to remove (use tab and arrow keys to scroll, space bar to select/deselect)"	\
 			  --ok-button "Remove"				\
 			  $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
 			  "${BACKUP_LIST[@]}"				\
@@ -687,8 +690,14 @@ do_remove_local() {
     #echo ${BACKUP_ARCHIVES[@]}
 
     for BACKUP_ARCHIVE in $BACKUP_ARCHIVES; do
+	BACKUP_ARCHIVE="${BACKUP_ARCHIVE#\"}"
+	BACKUP_ARCHIVE="${BACKUP_ARCHIVE%%\"}"
 	echo "Removing $BACKUP_ARCHIVE"
-	rm -f "$BACKUP_ARCHIVE"
+	rm $BACKUP_ARCHIVE
+	RC=$?
+	if [[ $RC -ne 0 ]]; then
+	    whiptail --msgbox "There was an error removing the backup (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	fi
     done
 
     return $?
