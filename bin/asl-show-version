@@ -71,11 +71,12 @@ get_asl_package_info()
 
 	DEB_PACKAGES=$(
 	    dpkg-query			\
-		--showformat='${db:Status-Abbrev};  ${binary:Package;-20}  ${Version}\n'	\
+		--showformat='${db:Status-Abbrev};  ${binary:Package;-30}  ${Version}\n'	\
 		--show			\
 		asl3\*			\
-		allmon3\*		\
 		dahdi\* 		\
+		allmon3\*		\
+		cockpit\* 		\
 	    | grep -e "^ii"		\
 	    | sed -e 's/^.*;//'		\
 	    | sort
@@ -89,8 +90,8 @@ get_asl_package_info()
     read -r -d '' ASL_PACKAGES << EOT
 Installed ASL packages :
 
-  Package               Version
-  ====================  ==============================
+  Package                         Version
+  ==============================  ==============================
 $DEB_PACKAGES
 EOT
 
