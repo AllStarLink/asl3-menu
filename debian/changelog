@@ -1,3 +1,10 @@
+asl3-menu (1.9-1) stable; urgency=medium
+
+  * Add new "build-asl3" script (#28)
+  * Include "test" modules in only one package (#29)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Fri, 20 Sep 2024 19:25:39 -0400
+
 asl3-menu (1.8-1) stable; urgency=medium
 
   * Nodes must have an ["idrecording"] callsign ID (#55) 
