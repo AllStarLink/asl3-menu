@@ -1800,7 +1800,7 @@ do_interface_tune_cli() {
     case "$CURRENT_INTERFACE_TYPE" in
 	"SimpleUSB" )
 	    clear
-	    /usr/sbin/simpleusb-tune-menu
+	    /usr/sbin/simpleusb-tune-menu -n $CURRENT_NODE
 	    RC=$?
 	    clear
 	    if [[ $RC -ne 0 ]]; then
@@ -1812,7 +1812,7 @@ do_interface_tune_cli() {
 	    ;;
 	"USBRadio" )
 	    clear
-	    /usr/sbin/radio-tune-menu
+	    /usr/sbin/radio-tune-menu -n $CURRENT_NODE
 	    RC=$?
 	    clear
 	    if [[ $RC -ne 0 ]]; then
