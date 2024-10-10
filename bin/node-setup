@@ -19,6 +19,7 @@ AST_RESTART=${AST_RESTART:-0}
 CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
+NEED_TUNE=0
 SUB_MENU=0
 TITLE="AllStarLink $ASL_VERSION"
 
@@ -1196,6 +1197,7 @@ txmixaset = 500
 
     AST_RECONFIG=1
     AST_RESTART=1
+    NEED_TUNE=1
 }
 
 do_node_set_usbradio() {
@@ -1324,6 +1326,7 @@ rxsquelchadj = 500
 
     AST_RECONFIG=1
     AST_RESTART=1
+    NEED_TUNE=1
 }
 
 do_node_set_voter() {
@@ -1825,6 +1828,8 @@ do_interface_tune_cli() {
 	* )
 	    ;;
     esac
+
+    NEED_TUNE=0
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -1876,6 +1881,11 @@ do_allstar_node_setup_menu() {
 	    fi
 	fi
 
+	DISPLAY_TUNE=""
+	if [[ $NEED_TUNE -ne 0 ]]; then
+	    DISPLAY_TUNE="                    <--"
+	fi
+
 	CHOICE=$(whiptail					\
 		    --title "$TITLE"				\
 		    --default-item=$DEFAULT_ITEM		\
@@ -1890,10 +1900,11 @@ do_allstar_node_setup_menu() {
 	    "5" "Duplex type      : $CURRENT_DUPLEX"		\
 	    "6" "Post node status : $CURRENT_STATPOST"		\
 	    "7" "Node access list : $CURRENT_NODE_ACCESS"	\
-	    "8" "Interface Tune CLI"				\
+	    "8" "Interface Tune CLI $DISPLAY_TUNE"		\
 	    "I" "Node Setup Menu Instructions"			\
 	    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
+	    NEED_TUNE=0
 	    return
 	fi
 
@@ -1923,6 +1934,8 @@ do_allstar_node_setup_menu() {
 
 	DEFAULT_ITEM=$CHOICE
     done
+
+    NEED_TUNE=0
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
