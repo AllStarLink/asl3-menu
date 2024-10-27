@@ -11,17 +11,31 @@ ALLMON3_INI="${DESTDIR}/etc/allmon3/allmon3.ini"
 ALLMON3_RESTART=0
 ASL_DEBUG=""
 ASL_UPDATED=${ASL_UPDATED:-0}
-ASL_VERSION=$(asl-show-version --asl)
+ASL_VERSION=$(asl-show-version --asl 2>/dev/null)
 ASTERISK=/usr/sbin/asterisk
 ASTRES=/usr/bin/astres.sh
 AST_RECONFIG=0
 AST_RESTART=${AST_RESTART:-0}
+BACKUP=/usr/bin/asl-backup-menu
 CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
+CUSTOM_DIR="${CONFIG_DIR}/custom"
+CUSTOMIZATION_ENABLER="/usr/share/asterisk/menu-lib/update-configuration-files.py"
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
+NEED_BACKUP=1
 NEED_TUNE=0
 SUB_MENU=0
 TITLE="AllStarLink $ASL_VERSION"
+
+BACKUP="$(dirname $0)/asl-backup-menu"
+if [[ ! -x "${BACKUP}" ]]; then
+    BACKUP=/usr/bin/asl-backup-menu
+fi
+
+CUSTOMIZATION_ENABLER="$(dirname $0)/../menu-lib/update-configuration-files.py"
+if [[ ! -x "${CUSTOMIZATION_ENABLER}" ]]; then
+    CUSTOMIZATION_ENABLER="/usr/share/asterisk/menu-lib/update-configuration-files.py"
+fi
 
 logfile=/dev/null
 
@@ -51,7 +65,7 @@ update_file_permissions() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 calc_wt_size() {
-#   echo "doing calc_wt_size" >>$logfile
+#   echo "calc_wt_size" >>$logfile
 
     # Bash knows the terminal size
     #   The number of columns are $COLUMNS
@@ -114,6 +128,13 @@ TEMPLATE_CATEGORY_ADD() {
     C="${1}"	# category
     T="${2}"	# template
     F="${3}"	# file
+    if [[ $# -gt 3 ]]; then
+	# insert new category before [####]
+	X="${4}"
+    else
+	# append new category
+	X="asl-menu"
+    fi
 
     # check if the [category] already exists
     grep -q "^\[${C}]"				"${F}"
@@ -129,8 +150,7 @@ TEMPLATE_CATEGORY_ADD() {
     # add the [category]
     #
     # ... and add the per-node category
-    sed -i -e "/^\[asl-menu]/i\\
-\\
+    sed -i -e "/^\[${X}]/i\\
 [${C}]${T}\\
 "						"${F}"
 }
@@ -155,6 +175,8 @@ TEMPLATE_CATEGORY_REMOVE() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_astres() {
+    echo "do_astres" >>$logfile
+
     $ASTRES
     RC=$?
     if [ $RC -ne 0 ]; then
@@ -177,13 +199,13 @@ do_astres() {
 do_backup_restore_menu() {
     echo "do_backup_restore_menu" >>$logfile
 
-    /usr/bin/asl-backup-menu --sub-menu $ASL_DEBUG
+    ${BACKUP} --sub-menu $ASL_DEBUG
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_query_node_callsign() {
-    echo "..doing do_query_node_callsign" >>$logfile
+    echo "..do_query_node_callsign" >>$logfile
 
     while true; do
 	calc_wt_size
@@ -225,7 +247,7 @@ do_query_node_callsign() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_update_node_callsign() {
-    echo "doing do_update_node_callsign" >>$logfile
+    echo "..do_update_node_callsign" >>$logfile
 
     do_query_node_callsign
     if [[ $? -ne 0 ]]; then
@@ -241,7 +263,7 @@ do_update_node_callsign() {
 }
 
 do_node_set_callsign() {
-    echo "doing do_node_set_callsign" >>$logfile
+    echo "....do_node_set_callsign ($CURRENT_NODE)" >>$logfile
 
     # Update callsign (for "ID")
 
@@ -270,7 +292,7 @@ idrecording = ${CALLSIGN_PREFIX}${NEW_CALLSIGN}
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_update_telemetry() {
-    echo "doing do_update_telemetry" >>$logfile
+    echo "do_update_telemetry ($CURRENT_NODE)" >>$logfile
 
     read -r -d '' TELEMETRY_TEXT << EOT || :
 Nodes with no telemetry can be setup for either full or half duplex.  Full duplex is preferred when interfacing with an external multiport repeater controller.
@@ -301,7 +323,7 @@ EOT
 }
 
 do_update_node_duplex() {
-    echo "doing do_update_node_duplex" >>$logfile
+    echo "..do_update_node_duplex" >>$logfile
 
     # Array of duplex choices
     duplex_modes=()
@@ -352,13 +374,13 @@ do_update_node_duplex() {
 	      "$CURRENT_LINKTOLINK" != "$NEW_LINKTOLINK"		\
 	   ]]; then
 	    NEW_DUPLEX=$ANSWER
-	    do_set_duplex
+	    do_node_set_duplex
 	fi
     fi
 }
 
-do_set_duplex() {
-    echo "doing do_set_duplex" >>$logfile
+do_node_set_duplex() {
+    echo "....do_node_set_duplex ($CURRENT_NODE)" >>$logfile
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
@@ -484,7 +506,7 @@ duplex = $NEW_DUPLEX
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_update_iax_bindport() {
-    echo "doing do_update_iax_bindport" >>$logfile
+    echo "do_update_iax_bindport" >>$logfile
 
     get_iax_settings
 
@@ -518,7 +540,7 @@ do_update_iax_bindport() {
 }
 
 do_set_iax_bindport() {
-    echo "doing do_set_iax_bindport" >>$logfile
+    echo "do_set_iax_bindport" >>$logfile
 
     # set server IAX bindport
     sed -i -e "/^bindport\s*=\s*$CURRENT_BINDPORT/ s/$CURRENT_BINDPORT/$NEW_BINDPORT/"	$CONFIG_DIR/iax.conf
@@ -527,8 +549,6 @@ do_set_iax_bindport() {
 
     # get node list
     nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
-    #echo "nodes = ${nodes[*]}"
-    #echo "    # = ${#nodes[@]}"
 
     # update IAX port for all nodes
     SAVE_NODE=$CURRENT_NODE
@@ -557,7 +577,7 @@ do_set_iax_bindport() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_query_node_number() {
-    echo "..doing do_query_node_number" >>$logfile
+    echo "..do_query_node_number" >>$logfile
 
     if [[ "$1" != "update" ]]; then
 	MSG="Enter new node number :"
@@ -622,7 +642,7 @@ do_query_node_number() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_update_node_number() {
-    echo "doing do_update_node_number" >>$logfile
+    echo "..do_update_node_number" >>$logfile
 
     do_query_node_number update
     if [[ $? -ne 0 ]]; then
@@ -639,7 +659,7 @@ do_update_node_number() {
 }
 
 do_node_rename() {
-    echo "doing do_node_rename" >>$logfile
+    echo "....do_node_rename" >>$logfile
 
     # Update appropriate rpt.conf lines
     sed -i										\
@@ -654,7 +674,7 @@ do_node_rename() {
 	SAVE_NODE=$CURRENT_NODE
 	CURRENT_NODE=$NEW_NODE
 	NEW_STATPOST="No"
-	do_set_statpost
+	do_node_set_statpost
 	CURRENT_NODE=$SAVE_NODE
     fi
 
@@ -750,7 +770,7 @@ do_node_rename() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_query_node_password() {
-    echo "..doing do_query_node_password" >>$logfile
+    echo "..do_query_node_password" >>$logfile
 
     while true; do
 	calc_wt_size
@@ -786,7 +806,7 @@ do_query_node_password() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_update_node_password() {
-    echo "doing do_update_node_password" >>$logfile
+    echo "..do_update_node_password" >>$logfile
 
     do_query_node_password
     if [[ $? -ne 0 ]]; then
@@ -802,7 +822,7 @@ do_update_node_password() {
 }
 
 do_node_set_password() {
-    echo "doing do_node_set_password" >>$logfile
+    echo "....do_node_set_password ($CURRENT_NODE)" >>$logfile
 
     # If private node, remove the registration
     if [[ $CURRENT_NODE -lt 2000 ]]; then
@@ -876,7 +896,7 @@ do_node_set_password() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_update_node_statpost() {
-    echo "doing do_update_node_statpost" >>$logfile
+    echo "..do_update_node_statpost" >>$logfile
 
     if [[ $CURRENT_NODE -ge 2000 ]]; then
 	# un/comment the statpost command in rpt.conf
@@ -904,11 +924,11 @@ do_update_node_statpost() {
 	return
     fi
 
-    do_set_statpost
+    do_node_set_statpost
 }
 
-do_set_statpost() {
-    echo "doing do_set_statpost" >>$logfile
+do_node_set_statpost() {
+    echo "....do_node_set_statpost" >>$logfile
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt.conf
 	#
@@ -932,7 +952,7 @@ statpost_url = http:\/\/stats.allstarlink.org\/uhandler
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_update_ami_secret() {
-    echo "doing do_update_ami_secret" >>$logfile
+    echo "do_update_ami_secret" >>$logfile
 
     get_ami_settings
 
@@ -968,7 +988,7 @@ do_update_ami_secret() {
 }
 
 do_set_ami_secret() {
-    echo "doing do_set_ami_secret" >>$logfile
+    echo "do_set_ami_secret" >>$logfile
 
     sed -i -e "/^secret\s*=\s*$CURRENT_AMI_SECRET/ s/$CURRENT_AMI_SECRET/$NEW_AMI_SECRET/"	$CONFIG_DIR/manager.conf
 
@@ -985,7 +1005,7 @@ do_set_ami_secret() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_query_node_interface() {
-    echo "..doing do_query_node_interface ${1}" >>$logfile
+    echo "..do_query_node_interface ${1}" >>$logfile
 
     interface_types=()
     interface_types+=("1" "SimpleUSB    : CM1xx USB Cards no/DSP (URIx or RA-40)"	)
@@ -1003,7 +1023,7 @@ do_query_node_interface() {
 
     INTERFACE_SELECTION_SKIPPED=0
 
-    DEFAULT_ITEM=0
+    local DEFAULT_ITEM=0
     case "$CURRENT_INTERFACE_TYPE" in
 	"SimpleUSB" ) DEFAULT_ITEM=1	;;
 	"USBRadio"  ) DEFAULT_ITEM=2	;;
@@ -1045,7 +1065,7 @@ do_query_node_interface() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_update_node_interface() {
-    echo "doing do_interface_type" >>$logfile
+    echo "..do_update_node_interface ($CURRENT_NODE)" >>$logfile
 
     do_query_node_interface full
     if [[ $? -ne 0 ]]; then
@@ -1063,7 +1083,7 @@ do_update_node_interface() {
 }
 
 do_noload_chan_modules() {
-    echo "..doing do_noload_chan_modules" >>$logfile
+    echo "........do_noload_chan_modules" >>$logfile
 
     # set common [app_rpt] channel modules to noload
     sed -i									\
@@ -1075,7 +1095,7 @@ do_noload_chan_modules() {
 }
 
 do_load_chan_module() {
-    echo "....doing do_load_chan_module ${1}" >>$logfile
+    echo "..........do_load_chan_module ${1} (for $CURRENT_NODE)" >>$logfile
 
     # load specific [app_rpt] channel module
     MODULE="chan_$1"
@@ -1084,7 +1104,7 @@ do_load_chan_module() {
 }
 
 do_load_chan_modules() {
-    echo "..doing do_load_chan_modules" >>$logfile
+    echo "........do_load_chan_modules" >>$logfile
 
     # load all [app_rpt] channel modules referenced in the configuration
 
@@ -1092,8 +1112,6 @@ do_load_chan_modules() {
 
     # get node list
     nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
-    #echo "nodes = ${nodes[*]}"
-    #echo "    # = ${#nodes[@]}"
 
     # ensure each node's channel driver is loaded
     for i in ${!nodes[@]}; do
@@ -1122,7 +1140,7 @@ do_load_chan_modules() {
 }
 
 do_update_chan_modules() {
-    echo "doing do_update_chan_modules" >>$logfile
+    echo "......do_update_chan_modules" >>$logfile
 
     # Update modules
     do_noload_chan_modules
@@ -1130,6 +1148,8 @@ do_update_chan_modules() {
 }
 
 do_set_rxchannel() {
+    echo "......do_set_rxchannel" >>$logfile
+
     # set a nodes rxchannel
     RXCHANNEL="$1"
 
@@ -1147,7 +1167,7 @@ rxchannel = $RXCHANNEL
 }
 
 do_node_set_simpleusb() {
-    echo "doing do_node_set_simpleusb" >>$logfile
+    echo "....do_node_set_simpleusb" >>$logfile
 
     if [ "$CURRENT_INTERFACE_TYPE" = "SimpleUSB" ]; then
 	return
@@ -1187,8 +1207,8 @@ do_node_set_simpleusb() {
 ;;;;; Tune settings ;;;;;\\
 devstr =\\
 rxmixerset = 500\\
-txmixbset = 500\\
-txmixaset = 500
+txmixaset = 500\\
+txmixbset = 500
 "											$CONFIG_DIR/simpleusb.conf
 	    fi
 	else
@@ -1229,8 +1249,8 @@ preemphasis = no\\
 ;;;;; Tune settings ;;;;;\\
 devstr =\\
 rxmixerset = 500\\
-txmixbset = 500\\
-txmixaset = 500
+txmixaset = 500\\
+txmixbset = 500
 "											$CONFIG_DIR/simpleusb.conf
 	    fi
 	fi
@@ -1245,7 +1265,7 @@ txmixaset = 500
 }
 
 do_node_set_usbradio() {
-    echo "doing do_node_set_usbradio" >>$logfile
+    echo "....do_node_set_usbradio" >>$logfile
 
     if [ "$CURRENT_INTERFACE_TYPE" = "USBRadio" ]; then
 	return
@@ -1374,7 +1394,7 @@ rxsquelchadj = 500
 }
 
 do_node_set_voter() {
-    echo "doing do_node_set_voter" >>$logfile
+    echo "....do_node_set_voter" >>$logfile
 
     if [ "$CURRENT_INTERFACE_TYPE" = "Voter" ]; then
 	return
@@ -1414,7 +1434,7 @@ do_node_set_voter() {
 }
 
 do_node_set_pseudo() {
-    echo "doing do_set_pseudo" >>$logfile
+    echo "....do_node_set_pseudo" >>$logfile
 
     if [ "$CURRENT_INTERFACE_TYPE" = "Pseudo" ]; then
 	return
@@ -1433,7 +1453,7 @@ do_node_set_pseudo() {
 }
 
 do_node_set_usrp() {
-    echo "doing do_node_set_usrp" >>$logfile
+    echo "....do_node_set_usrp" >>$logfile
 
     if [ "$CURRENT_INTERFACE_TYPE" = "USRP" ]; then
 	return
@@ -1471,32 +1491,90 @@ get_iax_settings () {
 }
 
 get_node_settings () {
-    # collect info for [CURRENT_NODE]
+    #
+    # collect [rpt.conf] info for [CURRENT_NODE]
+    #
 
     CURRENT_CALLSIGN=""
     CURRENT_DUPLEX=""
+    CURRENT_HANGTIME="5000"
     CURRENT_INTERFACE=""
     CURRENT_INTERFACE_TYPE=""
-    CURRENT_PASSWORD=""
-    CURRENT_STATPOST="No"
-
-    CURRENT_HANGTIME="5000"
     CURRENT_LINKTOLINK="no"
+    CURRENT_STATPOST="No"
     CURRENT_WAIT_TIMES="wait-times"
+
+    CURRENT_NODE_STANZAS=$(grep "^\[${CURRENT_NODE}]"			$CONFIG_DIR/rpt.conf)
+    CURRENT_NODE_STANZAS="${CURRENT_NODE_STANZAS#\[${CURRENT_NODE}]}"
+    CURRENT_NODE_STANZAS="${CURRENT_NODE_STANZAS#*\(}"
+    CURRENT_NODE_STANZAS="${CURRENT_NODE_STANZAS%\)*}"
+
+    CURRENT_EVENTS_STANZAS=$(grep "^\[events-${CURRENT_NODE}]"		$CONFIG_DIR/rpt.conf)
+    if [[ -n "${CURRENT_EVENTS_STANZAS}" ]]; then
+	CURRENT_EVENTS_STANZAS="${CURRENT_EVENTS_STANZAS#\[events-${CURRENT_NODE}]}"
+    else
+	CURRENT_EVENTS_STANZAS=$(grep "^\[events]"			$CONFIG_DIR/rpt.conf)
+	CURRENT_EVENTS_STANZAS="${CURRENT_EVENTS_STANZAS#\[events]}"
+    fi
+    CURRENT_EVENTS_STANZAS="${CURRENT_EVENTS_STANZAS#*\(}"
+    CURRENT_EVENTS_STANZAS="${CURRENT_EVENTS_STANZAS%\)*}"
+
+    CURRENT_FUNCTIONS_STANZAS=$(grep "^\[functions-${CURRENT_NODE}]"	$CONFIG_DIR/rpt.conf)
+    if [[ -n "${CURRENT_FUNCTIONS_STANZAS}" ]]; then
+	CURRENT_FUNCTIONS_STANZAS="${CURRENT_FUNCTIONS_STANZAS#\[functions-${CURRENT_NODE}]}"
+    else
+	CURRENT_FUNCTIONS_STANZAS=$(grep "^\[functions]"		$CONFIG_DIR/rpt.conf)
+	CURRENT_FUNCTIONS_STANZAS="${CURRENT_FUNCTIONS_STANZAS#\[functions]}"
+    fi
+    CURRENT_FUNCTIONS_STANZAS="${CURRENT_FUNCTIONS_STANZAS#*\(}"
+    CURRENT_FUNCTIONS_STANZAS="${CURRENT_FUNCTIONS_STANZAS%\)*}"
+
+    CURRENT_MORSE_STANZAS=$(grep "^\[morse-${CURRENT_NODE}]"		$CONFIG_DIR/rpt.conf)
+    if [[ -n "${CURRENT_MORSE_STANZAS}" ]]; then
+	CURRENT_MORSE_STANZAS="${CURRENT_MORSE_STANZAS#\[morse-${CURRENT_NODE}]}"
+    else
+	CURRENT_MORSE_STANZAS=$(grep "^\[morse]"			$CONFIG_DIR/rpt.conf)
+	CURRENT_MORSE_STANZAS="${CURRENT_MORSE_STANZAS#\[morse]}"
+    fi
+    CURRENT_MORSE_STANZAS="${CURRENT_MORSE_STANZAS#*\(}"
+    CURRENT_MORSE_STANZAS="${CURRENT_MORSE_STANZAS%\)*}"
+
+    CURRENT_TELEMETRY_STANZAS=$(grep "^\[telemetry-${CURRENT_NODE}]"	$CONFIG_DIR/rpt.conf)
+    if [[ -n "${CURRENT_TELEMETRY_STANZAS}" ]]; then
+	CURRENT_TELEMETRY_STANZAS="${CURRENT_TELEMETRY_STANZAS#\[telemetry-${CURRENT_NODE}]}"
+    else
+	CURRENT_TELEMETRY_STANZAS=$(grep "^\[telemetry]"		$CONFIG_DIR/rpt.conf)
+	CURRENT_TELEMETRY_STANZAS="${CURRENT_TELEMETRY_STANZAS#\[telemetry]}"
+    fi
+    CURRENT_TELEMETRY_STANZAS="${CURRENT_TELEMETRY_STANZAS#*\(}"
+    CURRENT_TELEMETRY_STANZAS="${CURRENT_TELEMETRY_STANZAS%\)*}"
+
+    CURRENT_WAIT_TIMES_STANZAS=$(grep "^\[wait-times-${CURRENT_NODE}]"	$CONFIG_DIR/rpt.conf)
+    if [[ -n "${CURRENT_WAIT_TIMES_STANZAS}" ]]; then
+	CURRENT_WAIT_TIMES_STANZAS="${CURRENT_WAIT_TIMES_STANZAS#\[wait-times-${CURRENT_NODE}]}"
+    else
+	CURRENT_WAIT_TIMES_STANZAS=$(grep "^\[wait-times]"		$CONFIG_DIR/rpt.conf)
+	CURRENT_WAIT_TIMES_STANZAS="${CURRENT_WAIT_TIMES_STANZAS#\[wait-times]}"
+    fi
+    CURRENT_WAIT_TIMES_STANZAS="${CURRENT_WAIT_TIMES_STANZAS#*\(}"
+    CURRENT_WAIT_TIMES_STANZAS="${CURRENT_WAIT_TIMES_STANZAS%\)*}"
 
     AWK_TMP=$(mktemp)
 
-    awk	"BEGIN			{ p=0; }
-	 /^[ 	]*;/		{ next; }
-	 /^$/			{ next; }
-	 /^\[node-main]/	{ p=1; next; }
-	 /^\[${CURRENT_NODE}]/	{ p=1; next; }
-	 /^\[/			{ p=0; }
-	 p==1			{ print; }
-	"			"${CONFIG_DIR}/rpt.conf"	\
-    | sed -e 's/[ 	]*;.*//'				\
-	  -e 's/[ 	]*\([^ 	]*\)=[ 	]*\(.*\)/\1	\2/'	\
-    > $AWK_TMP
+    stanzas=(${CURRENT_NODE_STANZAS//,/ })
+    for stanza in "${stanzas[@]}" ${CURRENT_NODE}
+    do
+	awk	"BEGIN			{ p=0; }
+		 /^[ 	]*;/		{ next; }
+		 /^$/			{ next; }
+		 /^\[${stanza}]/	{ p=1; next; }
+		 /^\[/			{ p=0; }
+		 p==1			{ print; }
+		"			"${CONFIG_DIR}/rpt.conf"	\
+	| sed -e 's/[ 	]*;.*//'					\
+	      -e 's/[ 	]*\([^ 	]*\)=[ 	]*\(.*\)/\1	\2/'		\
+	>> $AWK_TMP
+    done
 
     while read key value
     do
@@ -1550,6 +1628,25 @@ get_node_settings () {
     done < $AWK_TMP
 
     rm $AWK_TMP
+
+    #
+    # collect [interface] info for [CURRENT_NODE]
+    #
+
+    case "$CURRENT_INTERFACE_TYPE" in
+	"SimpleUSB" )
+	    CURRENT_CHANNEL_STANZAS=$(grep "^\[${CURRENT_NODE}]"	$CONFIG_DIR/simpleusb.conf)
+	    ;;
+	"USBRadio" )
+	    CURRENT_CHANNEL_STANZAS=$(grep "^\[${CURRENT_NODE}]"	$CONFIG_DIR/usbradio.conf)
+	    ;;
+	* )
+	    CURRENT_CHANNEL_STANZAS=""
+	    ;;
+    esac
+    CURRENT_CHANNEL_STANZAS="${CURRENT_CHANNEL_STANZAS#\[${CURRENT_NODE}]}"
+    CURRENT_CHANNEL_STANZAS="${CURRENT_CHANNEL_STANZAS#*\(}"
+    CURRENT_CHANNEL_STANZAS="${CURRENT_CHANNEL_STANZAS%\)*}"
 
     #
     # and pick up the node password
@@ -1854,8 +1951,719 @@ EOT
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
+has_template() {
+    if [[ ",${1}," = *,${2}-main,* ]]; then
+	return 1
+    fi
+
+    return 0
+}
+
+check_customization () {
+    if [[ ! -d $CUSTOM_DIR ]]; then
+	# if no "custom" directory
+	DISPLAY_CUSTOMIZATIONS="Not available"
+	CUSTOMIZATIONS_MESSAGE="No customizations available."
+	return
+    fi
+
+    DISPLAY_CUSTOMIZATIONS=""
+    CUSTOMIZATIONS_MESSAGE=""
+
+    CUSTOMIZATION_CHANNEL=""
+    case "$CURRENT_INTERFACE_TYPE" in
+	"SimpleUSB" )
+	    CUSTOMIZATION_CHANNEL="simpleusb"
+	    ;;
+	"SimpleUSB" )
+	    CUSTOMIZATION_CHANNEL="usbradio"
+	    ;;
+    esac
+
+    for cat in node events functions morse telemetry wait-times channel; do
+	case "$cat" in
+	    "node" )
+		stanzas="${CURRENT_NODE_STANZAS}"
+		;;
+	    "events" )
+		stanzas="${CURRENT_EVENTS_STANZAS}"
+		;;
+	    "functions" )
+		stanzas="${CURRENT_FUNCTIONS_STANZAS}"
+		;;
+	    "morse" )
+		stanzas="${CURRENT_MORSE_STANZAS}"
+		;;
+	    "telemetry" )
+		stanzas="${CURRENT_TELEMETRY_STANZAS}"
+		;;
+	    "wait-times" )
+		stanzas="${CURRENT_WAIT_TIMES_STANZAS}"
+		;;
+	    "channel" )
+		cat="node"
+		stanzas="${CURRENT_CHANNEL_STANZAS}"
+		;;
+	esac
+
+	if [[ -z "$stanzas" ]]; then
+	    continue
+	fi
+
+	has_template "$stanzas"	"$cat"
+	if [[ $? -eq 0 ]]; then
+	    # if not using [our] templates
+	    DISPLAY_CUSTOMIZATIONS="Not available"
+	    CUSTOMIZATIONS_MESSAGE="Node \"$CURRENT_NODE\" is not using templates and cannot be customized."
+	    return
+	fi
+    done
+
+    MATCH=1
+    for c in rpt $CUSTOMIZATION_CHANNEL; do
+	grep -q "^#tryinclude \"*custom/${c}/\*\.conf"	$CONFIG_DIR/${c}.conf	2>/dev/null
+	MATCH=$?
+	if [[ $MATCH -eq 0 ]]; then
+	    break
+	fi
+    done
+    if [[ $MATCH -ne 0 ]]; then
+	# if no #tryinclude
+	DISPLAY_CUSTOMIZATIONS="Not available"
+	CUSTOMIZATIONS_MESSAGE="The \"*.conf\" files are not setup for customization."
+	return
+    fi
+
+    MATCH=1
+    for c in rpt $CUSTOMIZATION_CHANNEL; do
+	grep -q "^;MENU:"				$CUSTOM_DIR/${c}/*.conf	2>/dev/null
+	MATCH=$?
+	if [[ $MATCH -eq 0 ]]; then
+	    break
+	fi
+    done
+    if [[ $MATCH -ne 0 ]]; then
+	# if no customizations (or an error)
+	DISPLAY_CUSTOMIZATIONS="Not available"
+	CUSTOMIZATIONS_MESSAGE="No customizations available."
+	return
+    fi
+
+    if [[ "${CURRENT_NODE_STANZAS}"       != "node-main"	|| \
+	  "${CURRENT_EVENTS_STANZAS}"     != "events-main"	|| \
+	  "${CURRENT_FUNCTIONS_STANZAS}"  != "functions-main"	|| \
+	  "${CURRENT_MORSE_STANZAS}"      != "morse-main"	|| \
+	  "${CURRENT_TELEMETRY_STANZAS}"  != "telemetry-main"	|| \
+	  "${CURRENT_WAIT_TIMES_STANZAS}" != "wait-times-main"	|| \
+	  "${CURRENT_CHANNEL_STANZAS}"    != "node-main"	]]; then
+	# if customizations already active
+	DISPLAY_CUSTOMIZATIONS="Show/Update"
+	return
+    fi
+
+    # if customizations available (but none are active)
+    DISPLAY_CUSTOMIZATIONS="Available"
+}
+
+do_enable_customizations() {
+    echo "do_enable_customizations" >>$logfile
+
+    HELPER="$1"
+
+    if [[ $NEED_BACKUP -ne 0 ]]; then
+	whiptail				\
+	    --title "$TITLE"			\
+	    --msgbox "Before attempting to enable customizations we should backup your current configuration."	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $? -ne 0 ]; then
+	    return 1
+	fi
+
+	${BACKUP} --sub-menu $ASL_DEBUG backup
+	RC=$?
+	case $RC in
+	    0  ) # ok
+		 NEED_BACKUP=0
+		 ;;
+	    254) # no backup requested
+		 ;;
+	    255) # escape
+		 return 1
+		 ;;
+	    *  ) # other error
+		 return 1
+		 ;;
+	esac
+    fi
+
+    whiptail					\
+	--title "$TITLE"			\
+	--msgbox "We will now attempt to update your configuration files to enable customizations."	\
+	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    if [ $? -ne 0 ]; then
+	return 1
+    fi
+
+    ${HELPER}
+    if [ $? -ne 0 ]; then
+	return 1
+    fi
+
+    check_customization
+    if [[ -n "$CUSTOMIZATIONS_MESSAGE" ]]; then
+	# if we still have no customization support
+
+	read -r -d '' CUSTOMIZATION_FAIL << EOT || :
+Our attempt to enable configuration file customization was NOT successful.
+
+What does this mean?  In order to enable customization support we need the configuration files to be setup in a very specific way.  Older configuration files did not have the needed support but we know what changes needed to be made.  On your system, we were either unable to make those changes or some of our expectations were not valid.
+
+For help see https://community.allstarlink.org
+EOT
+
+	whiptail				\
+	    --title "$TITLE"			\
+	    --msgbox "${CUSTOMIZATION_FAIL}"	\
+	    $WT_HEIGHT $WT_WIDTH
+	return 1
+    fi
+
+    return 0
+}
+
+do_update_node_stanzas() {
+    echo "..do_update_node_stanzas" >>$logfile
+
+    name=$1
+    type=$2
+
+    IFS=',' read -ra sections <<< "$type"
+    for section in "${sections[@]}"; do
+	case "$section" in
+	    "node" )
+		NEW_NODE_STANZAS+=",${name}"
+		;;
+	    "events" )
+		NEW_EVENTS_STANZAS+=",events-${name}"
+		;;
+	    "functions" )
+		NEW_FUNCTIONS_STANZAS+=",functions-${name}"
+		;;
+	    "morse" )
+		NEW_MORSE_STANZAS+=",morse-${name}"
+		;;
+	    "telemetry" )
+		NEW_TELEMETRY_STANZAS+=",telemetry-${name}"
+		;;
+	    "wait-times" )
+		NEW_WAIT_TIMES_STANZAS+=",wait-times-${name}"
+		;;
+	    "$CUSTOMIZATION_CHANNEL" )
+		;;
+	    * )
+		;;
+	esac
+    done
+
+}
+
+do_update_channel_stanzas() {
+    echo "..do_update_channel_stanzas" >>$logfile
+
+    name=$1
+
+    NEW_CHANNEL_STANZAS+=",${name}"
+}
+
+do_node_clean_interface_defaults()
+{
+    echo "..do_node_clean_interface_defaults" >>$logfile
+
+    case "$CURRENT_INTERFACE_TYPE" in
+	"SimpleUSB" )
+	    TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
+		sed -i -E " 
+		    /^\[$CURRENT_NODE\]/,/^\[/ {
+			s/^rxmixerset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
+			s/^txmixaset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
+			s/^txmixbset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
+		    }
+		"							$CONFIG_DIR/simpleusb.conf
+	    TEMPLATE_EDIT_END	$CONFIG_DIR/simpleusb.conf
+	    ;;
+	"USBRadio" )
+	    TEMPLATE_EDIT_START	$CONFIG_DIR/usbradio.conf
+		sed -i -E "
+		    /^\[$CURRENT_NODE\]/,/^\[/ {
+			s/^rxmixerset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
+			s/^txmixaset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
+			s/^txmixbset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
+		    }
+		"							$CONFIG_DIR/usbradio.conf
+	    TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
+	    ;;
+	* )
+	    ;;
+    esac
+}
+
+do_node_set_customizations() {
+    echo "..do_node_set_customizations" >>$logfile
+
+    CUR_STANZAS="$1"
+    NEW_STANZAS="$2"
+    CONFIG_FILE="$3"
+
+    sed -i										\
+	-e "/^\[$CURRENT_NODE\]($CUR_STANZAS)/ s/$CUR_STANZAS/$NEW_STANZAS/"	$CONFIG_DIR/$CONFIG_FILE.conf
+
+    update_file_permissions $CONFIG_DIR/$CONFIG_FILE.conf
+
+    AST_RESTART=1
+}
+
+do_node_set_customization_references() {
+    echo "..do_node_set_customization_references" >>$logfile
+
+    # set a nodes events/functions/telemetry references
+    SECTION_NAME="$1"
+    SECTION_TYPE="$2"
+    SECTION_INHERITS="$3"
+    CONFIG_FILE="${CONFIG_DIR}/${4}.conf"
+
+    TEMPLATE_EDIT_START $CONFIG_FILE
+
+	#
+	# if present, remove "<name>-<node#>" from this node
+	# ... and, if the <inherits> are non-null, add new "<name>-<node#>"
+	#
+	if [[ "${SECTION_INHERITS}" != "${SECTION_TYPE}-main" ]]; then
+	    sed	-i								\
+		-e "/^\[$CURRENT_NODE]/,/^\[/ { /^${SECTION_NAME}\s*=/d; }"	\
+		-e "/^\[$CURRENT_NODE]/a\\
+${SECTION_NAME} = ${SECTION_TYPE}-$CURRENT_NODE
+"										$CONFIG_FILE
+	else
+	    sed -i -e "/^\[$CURRENT_NODE]/,/^\[/ { /^${SECTION_NAME}\s*=/d; }"	$CONFIG_FILE
+	fi
+
+	# remove any existing "[<type>-<node#>]()" category
+	TEMPLATE_CATEGORY_REMOVE "${SECTION_TYPE}-${CURRENT_NODE}"		$CONFIG_FILE
+
+	if [[ "${SECTION_INHERITS}" != "${SECTION_TYPE}-main" ]]; then
+	    # add a new "[<type>-<node#>](...)" category
+	    TEMPLATE_CATEGORY_ADD						\
+		"${SECTION_TYPE}-${CURRENT_NODE}"				\
+		"${SECTION_INHERITS}"						\
+		"${CONFIG_FILE}"						\
+		"${CURRENT_NODE}"
+	fi
+
+    TEMPLATE_EDIT_END $CONFIG_FILE
+
+    update_file_permissions $CONFIG_FILE
+
+    AST_RESTART=1
+}
+
+get_customization_settings() {
+    echo "....get_customization_settings" >>$logfile
+
+    # identify directories with possible customization files
+
+    local custom_dirs=()
+
+    if [[ -n "$CURRENT_NODE_STANZAS" ]]; then
+	# add "rpt.conf" customization directories
+	custom_dirs+=(						\
+	    ${CUSTOM_DIR}/rpt.conf				\
+	    ${CUSTOM_DIR}/rpt/\*.conf				\
+	)
+    fi
+
+    if [[ -n "$CUSTOMIZATION_CHANNEL" ]]; then
+	if [[ -n "$CURRENT_CHANNEL_STANZAS" ]]; then
+	    # add channel driver customization directories
+	    custom_dirs+=(					\
+		${CUSTOM_DIR}/${CUSTOMIZATION_CHANNEL}.conf	\
+		${CUSTOM_DIR}/${CUSTOMIZATION_CHANNEL}/\*.conf	\
+	    )
+	fi
+    fi
+
+    # build checklist of available customizations
+
+    custom_desc=()
+    declare -g -A custom_file=()
+    declare -g -A custom_name=()
+    declare -g -A custom_type=()
+    declare -g -A custom_interface=()
+
+    re_dup=',duplex=([0-4]),'
+    re_rxc=',rxchannel=(SimpleUSB|USBRadio|Voter|Pseudo|USRP),'
+
+    IFS=$'\n'
+    for line in $(grep "^;MENU:" ${custom_dirs[@]} 2>/dev/null	\
+		  | LC_ALL=C sort -u				\
+		  | LC_ALL=C sort -t: -k5,5			\
+		 )
+    do
+	#
+	# extract (and remove) the customization file name and ";MENU:"
+	#
+	file="${line%%:;MENU:*}"
+	line="${line#*;MENU:}"
+
+	#
+	# extract (and remove) customization "name"
+	#
+	name="${line%%:*}"
+	name=("${name%%:*}")
+	line="${line#*:}"
+
+	#
+	# extract (and remove) customization "type"
+	#
+	type="${line%%:*}"
+	line="${line#*:}"
+
+	#
+	# extract customization "description"
+	#
+	desc=("$line")
+
+	#
+	# simplify the file being updated
+	#
+	case "$file" in
+	    */custom/rpt* )
+		file="rpt"
+		;;
+	    */custom/simpleusb* )
+		file="simpleusb"
+		;;
+	    */custom/usbradio* )
+		file="usbradio"
+		;;
+	    * )
+		;;
+	esac
+
+	#
+	# add (or update) menu customization info
+	#
+	if [[ ! -v custom_name[$desc] ]]; then
+	    custom_file[$desc]=$file
+	    custom_name[$desc]=$name
+	    custom_type[$desc]=$type
+	    custom_desc+=("$desc")
+	else
+	    custom_file[$desc]+=",$file"
+	    custom_type[$desc]+=",$type"
+	fi
+
+	#
+	# flag "rpt" types specifying an interface configuration
+	#
+	if [[ ",$type," =~ $re_dup && ",$type," =~ $re_rxc ]]; then
+	    custom_interface[$desc]=1
+	fi
+    done
+    unset IFS
+}
+
+has_customization() {
+    file=$1
+    name=$2
+
+    case "$file" in
+	"rpt" )
+	    if [[ ",${CURRENT_NODE_STANZAS},"       = *,${name},*		|| \
+		  ",${CURRENT_EVENTS_STANZAS},"     = *,events-${name},*	|| \
+		  ",${CURRENT_FUNCTIONS_STANZAS},"  = *,functions-${name},*	|| \
+		  ",${CURRENT_MORSE_STANZAS},"      = *,functions-${name},*	|| \
+		  ",${CURRENT_TELEMETRY_STANZAS},"  = *,telemetry-${name},*	|| \
+		  ",${CURRENT_WAIT_TIMES_STANZAS}," = *,wait-times-${name},*	]]; then
+		return 1
+	    fi
+	    ;;
+	"rpt,$CUSTOMIZATION_CHANNEL" )
+	    if [[ ",${CURRENT_NODE_STANZAS},"       = *,${name},*		|| \
+		  ",${CURRENT_EVENTS_STANZAS},"     = *,events-${name},*	|| \
+		  ",${CURRENT_FUNCTIONS_STANZAS},"  = *,functions-${name},*	|| \
+		  ",${CURRENT_MORSE_STANZAS},"      = *,functions-${name},*	|| \
+		  ",${CURRENT_TELEMETRY_STANZAS},"  = *,telemetry-${name},*	|| \
+		  ",${CURRENT_WAIT_TIMES_STANZAS}," = *,wait-times-${name},*	|| \
+		  ",${CURRENT_CHANNEL_STANZAS},"    = *,${name},*		]]; then
+		return 1
+	    fi
+	    ;;
+	"$CUSTOMIZATION_CHANNEL" )
+	    if [[ ",${CURRENT_CHANNEL_STANZAS},"    = *,${name},*		]]; then
+		return 1
+	    fi
+	    ;;
+    esac
+
+    return 0
+}
+
+do_update_customizations() {
+    echo "..do_update_customizations" >>$logfile
+
+    if [[ "$1" = "setup" ]]; then
+	read -r -d '' SETUP_TEXT << EOT || :
+The "Node Setup Menu" allows you to select/enable some "common" changes to your configuration.
+
+Do you want to customize the configuration for this node?
+EOT
+	whiptail --title "$TITLE" --yesno "${SETUP_TEXT}" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $? -ne 0 ]; then #no
+	    return
+	fi
+    fi
+
+    NEW_CUSTOMIZATION_SELECTION=
+    if [[ $# -gt 1 ]]; then
+	NEW_CUSTOMIZATION_SELECTION="$2"
+    fi
+
+    if [[ -n "$CUSTOMIZATIONS_MESSAGE" ]]; then
+	if [[ ! -x "${CUSTOMIZATION_ENABLER}" ]]; then
+	    whiptail					\
+		--title "$TITLE"			\
+		--msgbox "${CUSTOMIZATIONS_MESSAGE}"	\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    return
+	fi
+
+	CUSTOMIZATIONS_MESSAGE+="\n\nWould you like to see if we can enable customizations?"
+	whiptail					\
+	    --title "$TITLE"				\
+	    --yesno					\
+	    "${CUSTOMIZATIONS_MESSAGE}"			\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $? -ne 0 ]; then #no
+	    return
+	fi
+
+	do_enable_customizations "${CUSTOMIZATION_ENABLER}"
+	if [ $? -ne 0 ]; then #fail
+		return
+	fi
+    fi
+
+    get_customization_settings
+    if [[ ${#custom_desc[@]} -eq 0 ]]; then
+	whiptail						\
+	    --title "$TITLE"					\
+	    --msgbox "No customizations available."		\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return
+    fi
+
+    CUSTOMIZED_INTERFACE=""
+    if [[ -n "$NEW_CUSTOMIZATION_SELECTION" ]]; then
+	CUSTOMIZED_INTERFACE="Yes"
+    else
+	for tag in "${!custom_desc[@]}"; do
+	    desc=${custom_desc[$tag]}
+	    if [[ ${custom_interface[$desc]} -eq 0 ]]; then
+		continue
+	    fi
+
+	    file=${custom_file[$desc]}
+	    name=${custom_name[$desc]}
+	    has_customization "$file" "$name"
+	    if [[ $? -ne 0 ]]; then
+		CUSTOMIZED_INTERFACE="$desc"
+		break
+	    fi
+	done
+    fi
+
+    extras=()
+    selected=()
+    for tag in ${!custom_desc[@]}; do
+	desc=${custom_desc[$tag]}
+	name=${custom_name[$desc]}
+	file=${custom_file[$desc]}
+
+	ONOFF="OFF"
+	if [[ -n "$NEW_CUSTOMIZATION_SELECTION" && "${name}" = "$NEW_CUSTOMIZATION_SELECTION" ]]; then
+	    ONOFF="ON"
+	else
+	    has_customization "$file" "$name"
+	    if [[ $? -ne 0 ]]; then
+		ONOFF="ON"
+	    fi
+	fi
+
+	if [[ -n "$CUSTOMIZED_INTERFACE" ]]; then
+	    if [[ ${custom_interface[$desc]} -ne 0 ]]; then
+		if [[ "$ONOFF" != "ON" ]]; then
+		    continue
+		fi
+	    fi
+	fi
+
+	extras+=(${tag} "${desc} " "$ONOFF")
+	if [[ "$ONOFF" = "ON" ]]; then
+	    selected+=("${tag}")
+	fi
+    done
+
+    # display (or change) the customizations
+
+    if [[ -z "$NEW_CUSTOMIZATION_SELECTION" ]]; then
+	while true; do
+	    selected=$(whiptail						\
+			    --title "$TITLE"				\
+			    --scrolltext				\
+			    --separate-output				\
+			    --checklist "Select the customization(s) to enable (use tab and arrow keys to scroll, space bar to select/deselect)"	\
+			    --notags					\
+			    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
+			    --						\
+			    "${extras[@]}"				\
+			    3>&1 1>&2 2>&3)
+	    if [[ $? -ne 0 ]]; then
+		return 1
+	    fi
+
+	    CUSTOMIZED_INTERFACES=()
+	    for tag in $selected; do
+		desc=${custom_desc[$tag]}
+		if [[ ${custom_interface[$desc]} -ne 0 ]]; then
+		    CUSTOMIZED_INTERFACES+=("  $desc")
+		fi
+	    done
+	    if [[ ${#CUSTOMIZED_INTERFACES[@]} -gt 1 ]]; then
+		IFS=$'\n'
+		read -r -d '' CUSTOMIZATION_FAIL << EOT || :
+Only one "interface" configuration can be selected at a time.  Please choose only one of the following :
+
+${CUSTOMIZED_INTERFACES[*]}
+EOT
+		unset IFS
+		whiptail					\
+		    --title "$TITLE"				\
+		    --msgbox "${CUSTOMIZATION_FAIL}"    	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+		continue
+	    fi
+
+	    break
+	done
+    fi
+
+    NEW_NODE_STANZAS="node-main"
+    NEW_EVENTS_STANZAS="events-main"
+    NEW_FUNCTIONS_STANZAS="functions-main"
+    NEW_MORSE_STANZAS="morse-main"
+    NEW_TELEMETRY_STANZAS="telemetry-main"
+    NEW_WAIT_TIMES_STANZAS="wait-times-main"
+    NEW_CHANNEL_STANZAS="node-main"
+    IFS=$'\n'
+    for tag in $selected; do
+	desc=${custom_desc[$tag]}
+	file=${custom_file[$desc]}
+	name=${custom_name[$desc]}
+	type=${custom_type[$desc]}
+	case "$file" in
+	    "rpt" )
+		do_update_node_stanzas $name $type
+		;;
+	    "rpt,$CUSTOMIZATION_CHANNEL" )
+		do_update_node_stanzas $name $type
+		do_update_channel_stanzas $name
+		;;
+	    "$CUSTOMIZATION_CHANNEL" )
+		do_update_channel_stanzas $name
+		;;
+	    * )
+		echo "Oops, file=$file"
+		exit 1
+	esac
+    done
+    unset IFS
+
+    if [[ "$CURRENT_NODE_STANZAS" != "$NEW_NODE_STANZAS" ]]; then
+	do_node_set_customizations		\
+	    "$CURRENT_NODE_STANZAS"		\
+	    "$NEW_NODE_STANZAS"			\
+	    "rpt"
+    fi
+
+    if [[ "$CURRENT_EVENTS_STANZAS" != "$NEW_EVENTS_STANZAS" ]]; then
+	do_node_set_customization_references	\
+	    "events"				\
+	    "events"				\
+	    "$NEW_EVENTS_STANZAS"		\
+	    "rpt"
+    fi
+
+    if [[ "$CURRENT_FUNCTIONS_STANZAS" != "$NEW_FUNCTIONS_STANZAS" ]]; then
+	do_node_set_customization_references	\
+	    "functions"				\
+	    "functions"				\
+	    "$NEW_FUNCTIONS_STANZAS"		\
+	    "rpt"
+    fi
+
+    if [[ "$CURRENT_MORSE_STANZAS" != "$NEW_MORSE_STANZAS" ]]; then
+	do_node_set_customization_references	\
+	    "morse"				\
+	    "morse"				\
+	    "$NEW_MORSE_STANZAS"		\
+	    "rpt"
+    fi
+
+    if [[ "$CURRENT_TELEMETRY_STANZAS" != "$NEW_TELEMETRY_STANZAS" ]]; then
+	do_node_set_customization_references	\
+	    "telemetry"				\
+	    "telemetry"				\
+	    "$NEW_TELEMETRY_STANZAS"		\
+	    "rpt"
+    fi
+
+    if [[ "$CURRENT_WAIT_TIMES_STANZAS" != "$NEW_WAIT_TIMES_STANZAS" ]]; then
+	do_node_set_customization_references	\
+	    "wait_times"			\
+	    "wait-times"			\
+	    "$NEW_WAIT_TIMES_STANZAS"		\
+	    "rpt"
+    fi
+
+    if [[ -n "$CUSTOMIZATION_CHANNEL" ]]; then
+	if [[ "$CURRENT_CHANNEL_STANZAS" != "$NEW_CHANNEL_STANZAS" ]]; then
+	    if [[ "$CURRENT_CHANNEL_STANZAS" = "node-main" ]]; then
+		do_node_clean_interface_defaults
+	    fi
+	    do_node_set_customizations		\
+		"$CURRENT_CHANNEL_STANZAS"	\
+		"$NEW_CHANNEL_STANZAS"		\
+		$CUSTOMIZATION_CHANNEL
+	fi
+    fi
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
 do_interface_tune_cli() {
-    echo "doing do_interface_tune_cli" >>$logfile
+    echo "..do_interface_tune_cli" >>$logfile
+
+    if [[ "$1" = "setup" ]]; then
+	read -r -d '' TUNE_TEXT << EOT || :
+The "Node Setup Menu" allows you to change (or "tune") the configuration of the radio interface.
+
+Do you want to view or adjust the settings for this nodes interface?
+EOT
+	whiptail --title "$TITLE" --yesno "${TUNE_TEXT}" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [ $? -ne 0 ]; then #no
+	    return
+	fi
+    fi
 
     # check if tuning available for this interface
     case "$CURRENT_INTERFACE_TYPE" in
@@ -1947,6 +2755,7 @@ For new nodes you should choose values for each one of these items.
 6 Send statistics (yes or no) to "stats.allstarlink.org". This allows you and others to see the status and connections of your node including the location on a map.
 7 This selection allows you to limit connections to your node.
 8 This selection allows you to tune your "SimpleUSB" and "USBRadio" interfaces.
+C This selection allows you to select/enable some "common" changes to your configuration
 
 These settings will go into effect when Asterisk is restarted.
 
@@ -1958,7 +2767,8 @@ EOT
 do_allstar_node_setup_menu() {
     echo "do_allstar_node_setup_menu" >>$logfile
 
-    DEFAULT_ITEM=0
+    local CHOICE
+    local DEFAULT_ITEM=0
 
     get_allow_block_settings
 
@@ -1986,6 +2796,8 @@ do_allstar_node_setup_menu() {
 	    DISPLAY_TUNE="                    <--"
 	fi
 
+	check_customization
+
 	CHOICE=$(whiptail					\
 		    --title "$TITLE"				\
 		    --default-item $DEFAULT_ITEM		\
@@ -2001,6 +2813,7 @@ do_allstar_node_setup_menu() {
 	    "6" "Post node status : $CURRENT_STATPOST"		\
 	    "7" "Node access list : $CURRENT_NODE_ACCESS"	\
 	    "8" "Interface Tune CLI $DISPLAY_TUNE"		\
+	    "C" "Customizations   : $DISPLAY_CUSTOMIZATIONS"	\
 	    "I" "Node Setup Menu Instructions"			\
 	    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
@@ -2025,6 +2838,8 @@ do_allstar_node_setup_menu() {
 		;;
 	    8)	do_interface_tune_cli
 		;;
+	    C)  do_update_customizations update
+		;;
 	    I)	do_node_setup_menu_info
 		;;
 	    *)	whiptail --msgbox "$CHOICE is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
@@ -2041,7 +2856,7 @@ do_allstar_node_setup_menu() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_query_node_defaults() {
-    echo "do_query_node_defaults" >>$logfile
+    echo "..do_query_node_defaults ($CURRENT_NODE)" >>$logfile
 
     CURRENT_PASSWORD="=Not Set="
     if [[ $CURRENT_NODE -ge 2000 ]]; then
@@ -2055,63 +2870,130 @@ do_query_node_defaults() {
 	NEW_PASSWORD=""
     fi
 
+    # build list of common and device-specific configurations
+
+    declare -a configs
+    declare -A config_rxchannel
+    declare -A config_duplex
+    declare -A config_custom_name
+
+    # add "default" configuration
+
+    config="Default/manual configuration (show all settings)"
+    configs+=("${config}" "")
+
+    # add "common" configurations
+
+    configs+=("" "")
+    configs+=("Common Configurations" "")
+
+    config="  Half-duplex node (Hotspot) with telemetry tones"
+    configs+=("${config}" "")
+    config_duplex["${config}"]="1"
+
+    config="  Half-duplex node (Hotspot) with no telemetry tones"
+    configs+=("${config}" "")
+    config_duplex["${config}"]="0"
+
+    config="  Full-duplex node (Repeater or Hotspot)"
+    configs+=("${config}" "")
+    config_duplex["${config}"]="2"
+
+    config="  Full-duplex node, does not repeat audio"
+    configs+=("${config}" "")
+    config_duplex["${config}"]="3"
+
+    config="  HUB node w/no radio interface"
+    configs+=("${config}" "")
+    config_rxchannel["${config}"]="Pseudo"
+    config_duplex["${config}"]="2"
+
+    # add "device-specific" configurations
+
+    check_customization
+    if [[ -z "$CUSTOMIZATIONS_MESSAGE" ]]; then
+	CURRENT_NODE_STANZAS="node-main"
+	CURRENT_CHANNEL_STANZAS="node-main"
+	CUSTOMIZATION_CHANNEL="*"
+	get_customization_settings
+	CUSTOMIZATION_CHANNEL=""
+
+	device_index=${#configs[@]}
+	for i in ${!custom_desc[@]}; do
+	    desc=${custom_desc[$i]}
+	    type=${custom_type[$desc]}
+	    re=',duplex=([0-4]),'
+	    if [[ ",${type}," =~ $re ]]; then
+		NEW_DUPLEX="${BASH_REMATCH[1]}"
+		re=',rxchannel=(SimpleUSB|USBRadio|Voter|Pseudo|USRP),'
+		if [[ ",${type}," =~ $re ]]; then
+		    NEW_INTERFACE_TYPE="${BASH_REMATCH[1]}"
+		    if [[ ${#config_custom_name[@]} -eq 0 ]]; then
+			configs+=("" "")
+			device_index=${#configs[@]}
+			configs+=("Device Configurations" "")
+		    fi
+		    config="  ${desc}"
+		    configs+=("${config}" "")
+		    config_rxchannel["${config}"]="${NEW_INTERFACE_TYPE}"
+		    config_duplex["${config}"]="${NEW_DUPLEX}"
+		    config_custom_name["${config}"]="${custom_name[$desc]}"
+		fi
+	    fi
+	done
+
+	WT_NEEDED=$((${#configs[@]} / 2 + 8))
+	if [[ $WT_NEEDED -gt $WT_HEIGHT ]]; then
+	    configs[$device_index]="Device Configurations (scroll down for more)"
+	fi
+    fi
+
+    # choose configuration
+
     NEW_INTERFACE_TYPE=""
     NEW_DUPLEX=""
     NEW_LINKTOLINK=$CURRENT_LINKTOLINK
+    NEW_CUSTOMIZATION_SELECTION=""
 
-    ANSWER=$(whiptail									\
-		--title "$TITLE"							\
-		--menu "What configuration settings should we use for node $CURRENT_NODE?"	\
-		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT					\
-		--ok-button "Select"							\
-		"1" "Half-duplex node (Hotspot) with telemetry tones"			\
-		"2" "Half-duplex node (Hotspot) with no telemetry tones"		\
-		"3" "Full-duplex node (Repeater or Hotspot)"				\
-		"4" "Full-duplex node, does not repeat audio"				\
-		"5" "HUB node w/no radio interface"					\
-		"0" "None of the above (show all settings)"				\
-		3>&1 1>&2 2>&3)
-    if [[ $? -ne 0 ]]; then
-	return 1
-    fi
+    while true; do
+	ANSWER=$(whiptail									\
+		    --title "$TITLE"								\
+		    --menu "What configuration settings should we use for node $CURRENT_NODE?"	\
+		    --noitem									\
+		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT					\
+		    --ok-button "Select"							\
+		    --										\
+		    "${configs[@]}"								\
+		    3>&1 1>&2 2>&3)
+	if [[ $? -ne 0 ]]; then
+	    return 1
+	fi
 
-    case "$ANSWER" in
-	1)  # Half-duplex node (Hotspot) with telemetry tones
-	    NEW_INTERFACE_TYPE="SimpleUSB"
-	    NEW_DUPLEX=1
-	    ;;
-	2)  # Half-duplex node (Hotspot) with no telemetry tones
-	    NEW_INTERFACE_TYPE="SimpleUSB"
-	    NEW_DUPLEX=0
-	    ;;
-	3)  # Full-duplex node (Repeater or Hotspot)
-	    NEW_INTERFACE_TYPE="SimpleUSB"
-	    NEW_DUPLEX=2
-	    ;;
-	4)  # Full-duplex node, does not repeat audio
-	    NEW_INTERFACE_TYPE="SimpleUSB"
-	    NEW_DUPLEX=3
-	    ;;
-	5)  # HUB node w/no radio interface
-	    NEW_INTERFACE_TYPE="Pseudo"
-	    NEW_DUPLEX=2
-	    ;;
-	0)  # Use [node] default settings
-	    ;;
-	*)  whiptail --msgbox "$ANSWER is an unrecognized selection." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-	    ;;
-    esac
+	re='^(Default|  ).*$'
+	if [[ "$ANSWER" =~ $re ]]; then
+	    # if valid selection
+	    break
+	fi 
+    done
 
-    case "$ANSWER" in
-	1 | 2 | 3 | 4)
+    # process choice
+
+    if [[ "$ANSWER" = "${configs[0]}" ]]; then
+	SKIP_CUSTOMIZATION_SELECTION=1
+    elif [[ -n ${config_duplex["$ANSWER"]} ]]; then
+	NEW_INTERFACE_TYPE=${config_rxchannel["$ANSWER"]}
+	NEW_DUPLEX=${config_duplex["$ANSWER"]}
+	NEW_CUSTOMIZATION_SELECTION=${config_custom_name["$ANSWER"]}
+        
+	if [[ -z "$NEW_INTERFACE_TYPE" ]]; then
 	    do_query_node_interface short
 	    if [[ $? -ne 0 ]]; then
 		return 1
 	    fi
 
 	    NEW_INTERFACE_TYPE="$ANSWER"
-	    ;;
-    esac
+	fi
+    fi
 
     if [[ -n "$NEW_INTERFACE_TYPE" ]]; then
 	CURRENT_CALLSIGN="NOTSET"
@@ -2127,7 +3009,7 @@ do_query_node_defaults() {
 }
 
 do_node_set_defaults() {
-    echo "do_node_set_defaults" >>$logfile
+    echo "..do_node_set_defaults ($CURRENT_NODE)" >>$logfile
 
     if [[ -n "$NEW_INTERFACE_TYPE" ]]; then
 	CURRENT_INTERFACE_TYPE="?"
@@ -2152,7 +3034,7 @@ do_node_set_defaults() {
     fi
 
     if [[ -n "$NEW_DUPLEX" ]]; then
-	do_set_duplex
+	do_node_set_duplex
     fi
 
     if [[ $CURRENT_PASSWORD != $NEW_PASSWORD ]]; then
@@ -2166,15 +3048,17 @@ do_node_set_defaults() {
     if [[ -n "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
 	if [[ $CURRENT_NODE -ge 2000 ]]; then
 	    NEW_STATPOST="Yes"
-	    do_set_statpost
+	    do_node_set_statpost
 	fi
     fi
+
+    get_node_settings
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_node_add_registration() {
-    echo "do_node_add_registration" >>$logfile
+    echo "......do_node_add_registration ($CURRENT_NODE)" >>$logfile
 
     if [[ "$CURRENT_PASSWORD" = "=Not Set=" ]]; then
 	CURRENT_PASSWORD=""
@@ -2195,7 +3079,7 @@ _END_OF_INPUT
 }
 
 do_node_remove_registration() {
-    echo "do_node_remove_registration" >>$logfile
+    echo "......do_node_remove_registration ($REM_NODE)" >>$logfile
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
 	# remove the per-node registration
@@ -2293,12 +3177,29 @@ _END_OF_INPUT
 	do_node_add_iax_registration
     fi
 
+    do_node_set_defaults
     if [[ -z "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
 	# if using [node-main] template
 	do_update_chan_modules
-    else
-	# if using "selected" defaults
-	do_node_set_defaults
+    fi
+
+    check_customization
+    if [[ -z "$CUSTOMIZATIONS_MESSAGE" ]]; then
+	if [[ -n "$NEW_CUSTOMIZATION_SELECTION" ]]; then
+	    do_update_customizations update "$NEW_CUSTOMIZATION_SELECTION"
+	    get_node_settings
+	fi
+
+	if [[ $SKIP_CUSTOMIZATION_SELECTION -eq 0 ]]; then
+	    do_update_customizations setup
+	fi
+	SKIP_CUSTOMIZATION_SELECTION=0
+    fi
+
+    # If needed, update [primary node] reference in extensions.conf
+    grep -q -E "^NODE[[:space:]]*=[[:space:]]*0([[:space:]]*(;.*)?)?$"	$CONFIG_DIR/extensions.conf
+    if [[ $? -eq 0 ]]; then
+	sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/0/$CURRENT_NODE/"		$CONFIG_DIR/extensions.conf
     fi
 
     # If needed, update [primary node] reference in extensions.conf
@@ -2321,7 +3222,7 @@ _END_OF_INPUT
 	if [[ $INTERFACE_SELECTION_SKIPPED -eq 0 ]]; then
 	    case "$NEW_INTERFACE_TYPE" in
 		"SimpleUSB" | "USBRadio" )
-		    do_interface_tune_cli
+		    do_interface_tune_cli setup
 		    ;;
 	    esac
 	    return
@@ -2365,6 +3266,11 @@ do_node_remove() {
 
 	# ... and update [nodes]
 	sed -i -e "/^\[nodes]/,/^\[/ { /^${REM_NODE}\s*=/d }"	$CONFIG_DIR/rpt.conf
+
+	# and remove any existing "[<type>-<node#>]()" categories
+	for cat in events functions morse telemetry wait-times; do
+	    TEMPLATE_CATEGORY_REMOVE "${cat}-${REM_NODE}"	$CONFIG_DIR/rpt.conf
+	done
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
     do_node_remove_registration
@@ -2439,15 +3345,14 @@ do_node_remove() {
 do_allstar_node_select_menu() {
     echo "do_allstar_node_select_menu" >>$logfile
 
-    DEFAULT_ITEM=1
+    local CHOICE
+    local DEFAULT_ITEM=1
 
     while true; do
 	calc_wt_size
 
 	# get node list
 	nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
-	#echo "nodes = ${nodes[*]}"
-	#echo "    # = ${#nodes[@]}"
 
 	if [ ${#nodes[@]} -eq 0 -a "$DEFAULT_ITEM" = "1" ]; then
 	    # if we have no configured nodes
@@ -2489,14 +3394,25 @@ do_allstar_node_select_menu() {
 		    CURRENT_PASSWORD=""
 		fi
 
+		do_node_set_defaults
 		if [[ -n "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
-		    # apply the defaults for the selected type
-		    do_node_set_defaults
+		    check_customization
+		    if [[ -z "$CUSTOMIZATIONS_MESSAGE" ]]; then
+			if [[ -n "$NEW_CUSTOMIZATION_SELECTION" ]]; then
+			    do_update_customizations update "$NEW_CUSTOMIZATION_SELECTION"
+			    get_node_settings
+			fi
+
+			if [[ $SKIP_CUSTOMIZATION_SELECTION -eq 0 ]]; then
+			    do_update_customizations setup
+			fi
+			SKIP_CUSTOMIZATION_SELECTION=0
+		    fi
 
 		    if [[ $INTERFACE_SELECTION_SKIPPED -eq 0 ]]; then
 			case "$NEW_INTERFACE_TYPE" in
 			    "SimpleUSB" | "USBRadio" )
-				do_interface_tune_cli
+				do_interface_tune_cli setup
 				;;
 			esac
 			return
@@ -2637,7 +3553,7 @@ do_main_menu() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_exit() {
-    echo "doing do_exit" >>$logfile
+    echo "do_exit" >>$logfile
 
     if [[ $ASL_UPDATED -ne 0 ]]; then
 	sync

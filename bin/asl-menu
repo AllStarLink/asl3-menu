@@ -9,7 +9,7 @@
 
 ASL_DEBUG=""
 ASL_UPDATED=0
-ASL_VERSION=$(asl-show-version --asl)
+ASL_VERSION=$(asl-show-version --asl 2>/dev/null)
 ASTDN=/usr/bin/astdn.sh
 ASTERISK=/usr/sbin/asterisk
 ASTRES=/usr/bin/astres.sh

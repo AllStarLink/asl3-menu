@@ -36,6 +36,54 @@ At present, the menu system includes the following commands :
 - `/usr/sbin/node-setup`
 - `/usr/sbin/asl-backup-menu`, `/usr/sbin/save-node`, `/usr/sbin/restore-node`
 
+## Development, Debugging
+
+The following info provides some insights into one approach to development and debugging of the ASL3 menu scripts (with a focus on the "customization" support).
+
+#### Setup
+
+```
+cd
+git clone https://github.com/AllStarLink/asl3-menu.git
+cd asl3-menu
+git checkout your-branch-name			(e.g. "add-customization-support")
+```
+
+#### Install/update customization files
+
+```
+sudo -s
+(cd etc/asterisk/custom; make install)
+```
+
+#### Testing
+
+For testing out (and evaluating) configuration changes I use a script, "MANAGE-ASL-CONF.sh", that allows me to save the current configuration, diff any changes, and restore from the saved files.
+
+First, you should save the current configuration :
+
+```
+./MANAGE-ASL-CONF.sh save
+```
+
+Then, exec the `node-setup` script and "try things out" :
+
+```
+sudo bin/node-setup
+```
+
+Then, check to see what changes were made to the configuration files :
+
+```
+./MANAGE-ASL-CONF.sh diff-save
+```
+
+When/if needed, restore the saved configuration :
+
+```
+./MANAGE-ASL-CONF.sh restore
+```
+
 ## Futures
 
 - We have already started discussions and are prototyping changes to have the menu system adopt Asterisk's AMI interface as a "better" way to update the configuration files.
