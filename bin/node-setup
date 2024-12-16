@@ -538,7 +538,7 @@ do_set_iax_bindport() {
 	    # update the per-node bindport
 	    sed -i					\
 		-E					\
-		-e "/^[0-9]+\s*=\s*radio@/		\
+		-e "/^$CURRENT_NODE\s*=\s*radio@/	\
 			{				\
 			    s/:[0-9]+\//\//;		\
 			    s/\//:$NEW_BINDPORT\//;	\
