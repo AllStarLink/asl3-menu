@@ -1,3 +1,9 @@
+asl3-menu (1.11-1) stable; urgency=medium
+
+  * Only change IAX port for local nodes (#67)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Thu, 19 Dec 2024 19:27:11 -0500
+
 asl3-menu (1.10-1) stable; urgency=medium
 
   * node-setup: specify "node" when exec'ing "tune" menus (#62)
