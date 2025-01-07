@@ -1872,13 +1872,14 @@ do_allstar_node_setup_menu() {
 	    DISPLAY_CALLSIGN="*** Not Set ***     <--"
 	fi
 
-	DISPLAY_PASSWORD="$CURRENT_PASSWORD"
 	if [[ "$CURRENT_PASSWORD" = "=Not Set=" ]]; then
 	    if [[ $CURRENT_NODE -ge 2000 ]]; then
 		DISPLAY_PASSWORD="*** Not Set ***     <--"
 	    else
 		DISPLAY_PASSWORD=""
 	    fi
+	else
+	    DISPLAY_PASSWORD="Show/Update"
 	fi
 
 	DISPLAY_TUNE=""
