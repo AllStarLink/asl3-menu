@@ -325,13 +325,11 @@ do_update_node_duplex() {
 	fi
 	newarr+=("$i" "${duplex_modes[$i]}" "$ONOFF")
     done
-    ((i++))
 
     ANSWER=$(whiptail							\
 		--title "$TITLE"					\
 		--radiolist "Select the duplex type.\n\nUse the arrow keys to scroll and the space bar to select."	\
-		$WT_HEIGHT $WT_WIDTH					\
-		$i							\
+		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT			\
 		"${newarr[@]}"						\
 		3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
@@ -1965,10 +1963,11 @@ do_query_node_defaults() {
 		--menu "What configuration settings should we use for node $CURRENT_NODE?"	\
 		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT					\
 		--ok-button "Select"							\
-		"1" "Hotspot (half duplex) with courtesy tones"				\
-		"2" "Hotspot (half duplex) with no courtesy tones"			\
-		"3" "Repeater or full duplex hotspot"					\
-		"4" "HUB w/no radio"							\
+		"1" "Half-duplex node (Hotspot) with telemetry tones"			\
+		"2" "Half-duplex node (Hotspot) with no telemetry tones"		\
+		"3" "Full-duplex node (Repeater or Hotspot)"				\
+		"4" "Full-duplex node, does not repeat audio"				\
+		"5" "HUB node w/no radio interface"					\
 		"0" "None of the above (show all settings)"				\
 		3>&1 1>&2 2>&3)
     if [[ $? -ne 0 ]]; then
@@ -1976,19 +1975,23 @@ do_query_node_defaults() {
     fi
 
     case "$ANSWER" in
-	1)  # Hotspot (half duplex) with courtesy tones
+	1)  # Half-duplex node (Hotspot) with telemetry tones
 	    NEW_INTERFACE_TYPE="SimpleUSB"
 	    NEW_DUPLEX=1
 	    ;;
-	2)  # Hotspot (half duplex) with no courtesy tones
+	2)  # Half-duplex node (Hotspot) with no telemetry tones
 	    NEW_INTERFACE_TYPE="SimpleUSB"
 	    NEW_DUPLEX=0
 	    ;;
-	3)  # Repeater or full duplex hotspot
+	3)  # Full-duplex node (Repeater or Hotspot)
 	    NEW_INTERFACE_TYPE="SimpleUSB"
 	    NEW_DUPLEX=2
 	    ;;
-	4)  # Hub w/no radio
+	4)  # Full-duplex node, does not repeat audio
+	    NEW_INTERFACE_TYPE="SimpleUSB"
+	    NEW_DUPLEX=3
+	    ;;
+	5)  # HUB node w/no radio interface
 	    NEW_INTERFACE_TYPE="Pseudo"
 	    NEW_DUPLEX=2
 	    ;;
@@ -1999,7 +2002,7 @@ do_query_node_defaults() {
     esac
 
     case "$ANSWER" in
-	1 | 2 | 3)
+	1 | 2 | 3 | 4)
 	    do_query_node_interface short
 	    if [[ $? -ne 0 ]]; then
 		return 1
@@ -2044,6 +2047,7 @@ do_node_set_defaults() {
 		do_node_set_usrp
 		;;
 	esac
+	CURRENT_INTERFACE_TYPE=$NEW_INTERFACE_TYPE
     fi
 
     if [[ -n "$NEW_DUPLEX" ]]; then
