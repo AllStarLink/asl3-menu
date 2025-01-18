@@ -201,6 +201,11 @@ do_setup_include_list() {
 /etc/asterisk
 
 #
+# Include the Asterisk "db" (used by the node access list)
+#
+/var/lib/asterisk/astdb.sqlite3
+
+#
 # Include the paths being backed up
 #
 /var/asl-backups/asl-backup-files
