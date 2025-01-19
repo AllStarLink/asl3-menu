@@ -552,6 +552,15 @@ do_restore_asl() {
     fi
     ASL_ARCHIVE="$1"
 
+    if [[ ! -d "$BACKUP_DIR" ]]; then
+	mkdir -p "$BACKUP_DIR"	2>/dev/null
+	RC=$?
+	if [[ $RC -ne 0 ]]; then
+	    whiptail --msgbox "There was an error creating the archive directory (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    return $RC
+	fi
+    fi
+
     BACKUP_NAME=$(echo $ASL_ARCHIVE |	\
 		  sed -E 's/^([0-9][0-9][0-9][0-9])([0-9][0-9])([0-9][0-9])([0-9][0-9][0-9][0-9][0-9][0-9]).tgz$/ASL_\1-\2-\3_\4.tgz/')
     BACKUP_ARCHIVE="$BACKUP_DIR/$BACKUP_NAME"
