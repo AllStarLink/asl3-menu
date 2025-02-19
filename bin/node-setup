@@ -1301,7 +1301,7 @@ rxlpf = 0\\
 rxhpf = 0\\
 txlpf = 0\\
 txhpf = 0\\
-invertptt = yes\\
+invertptt = no\\
 duplex = 0\\
 duplex3 = 0\\
 \\
