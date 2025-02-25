@@ -342,6 +342,23 @@ do_backup_asl_push() {
     return 0
 }
 
+do_backup_local() {
+    echo "do_backup_local" >>$logfile
+
+    BACKUP_NAME=$(date +ASL_%Y-%m-%d_%H%M.tgz)
+    BACKUP_ARCHIVE="$BACKUP_DIR/$BACKUP_NAME"
+
+    do_backup_local_create "$BACKUP_ARCHIVE"
+    RC=$?
+    if [[ $RC -ne -0 ]]; then
+	return $RC
+    fi
+
+    echo "Backup to \"$SAVEHOST\" complete."
+
+    return 0
+}
+
 do_backup() {
     echo "do_backup" >>$logfile
 
@@ -352,9 +369,17 @@ do_backup() {
 	--title "$TITLE"						\
 	--yesno "Save local backup to :\n  \"$BACKUP_ARCHIVE\" ?"	\
 	$MSGBOX_HEIGHT $MSGBOX_WIDTH
-    if [[ $? -ne 0 ]]; then
-	return 0
-    fi
+    RC=$?
+    case $RC in
+	0) # yes
+	    ;;
+	1) # no, return a "special" non-zero exit code
+	    return 254
+	    ;;
+	*) # esc (or other error)
+	    return $RC
+	    ;;
+    esac
 
     do_backup_local_create "$BACKUP_ARCHIVE"
     RC=$?
@@ -830,6 +855,11 @@ while [[ $# -gt 0 ]]; do
 	    exit $?
 	    ;;
 
+	"backup-local" )
+	    do_backup_local
+	    exit $?
+	    ;;
+
 	"restore-local" )
 	    do_restore_local_select
 	    exit $?
@@ -851,7 +881,10 @@ while [[ $# -gt 0 ]]; do
 	    ;;
 
 	* )
-	    echo "Usage: $0 [ --debug ] [ --sub-menu ] [ backup | restore-local | restore-asl | restore-factory | remove ]"
+	    echo "Usage: $0 [ --debug ] [ --sub-menu ]"
+	    echo "       $0 [ --debug ] ( backup | backup-local )"
+	    echo "       $0 [ --debug ] ( restore-local | restore-asl | restore-factory )"
+	    echo "       $0 [ --debug ] remove ]"
 	    exit 1
     esac
 done
