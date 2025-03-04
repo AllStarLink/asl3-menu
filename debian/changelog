@@ -1,3 +1,14 @@
+asl3-menu (1.12-1) stable; urgency=medium
+
+  *  asl-show-version: don't complain about missing packages (#70)
+  *  Add a new "Full-duplex node, that do not repeat audio" node type (#72)
+  *  Hide node password (#73)
+  *  ASL backups should include the Asterisk "db" (#74)
+  *  asl-backup-menu: create backup directory before downloading archive (#75)
+  *  usbradio.conf: do not default to inverted PTT (#76)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Tue, 04 Mar 2025 09:36:44 -0500
+
 asl3-menu (1.11-1) stable; urgency=medium
 
   * Only change IAX port for local nodes (#67)
