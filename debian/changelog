@@ -1,3 +1,9 @@
+asl3-menu (1.13-1) stable; urgency=medium
+
+  * asl-backup-menu: add "backup-local" support (#77)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Wed, 26 Mar 2025 10:27:53 -0400
+
 asl3-menu (1.12-1) stable; urgency=medium
 
   *  asl-show-version: don't complain about missing packages (#70)
