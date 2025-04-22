@@ -582,6 +582,8 @@ do_query_node_number() {
 	    whiptail --msgbox "Private node numbers start at 1000." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	elif [[ $ANSWER -ge 2000 && $ANSWER =~ ^1 ]]; then
 	    whiptail --msgbox "Registered node numbers cannot start with a \"1\"." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	elif [[ "$1" = "first" && $ANSWER = $CURRENT_NODE ]]; then
+	    break
 	elif [[ ${nodes[@]} =~ $ANSWER ]]; then
 	    whiptail --msgbox "Node number \"$ANSWER\" is already defined, please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	else
