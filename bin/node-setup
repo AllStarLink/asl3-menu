@@ -2154,16 +2154,16 @@ _END_OF_INPUT
 
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
+    if [[ $CURRENT_NODE -ge 2000 ]]; then
+	do_node_add_registration
+    fi
+
     if [[ -z "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
 	# if using [node-main] template
 	do_update_chan_modules
     else
 	# if using "selected" defaults
 	do_node_set_defaults
-    fi
-
-    if [[ $CURRENT_NODE -ge 2000 ]]; then
-	do_node_add_registration
     fi
 
     update_file_permissions			\
