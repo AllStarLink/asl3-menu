@@ -1532,30 +1532,37 @@ do_limit_nodes_add() {
     while true; do
 	calc_wt_size
 
-	ANSWER=$(whiptail					\
-		    --title "$TITLE"				\
-		    --inputbox "Enter node number to $ACTION"	\
-		    $MSGBOX_HEIGHT $MSGBOX_WIDTH		\
-		    ""						\
+	ANSWER=$(whiptail						\
+		    --title "$TITLE"					\
+		    --inputbox "Enter node number (or call) to $ACTION"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH			\
+		    ""							\
 		    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
 	    return
 	fi
 
-	re=^[0-9]\+$
-	if [[ $ANSWER =~ $re ]]; then
+	re_node=^[0-9]\+$
+	re_call=^[0-9A-Za-z/-]{3,}$
+	if [[ $ANSWER =~ $re_node || $ANSWER =~ $re_call ]]; then
+	    ALLOW_NODE=${ANSWER^^}
 	    break
 	fi
 
-	whiptail --msgbox "Please enter a valid node number, usually 4 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --msgbox "Please enter a valid node number (or call)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
+
+    if [[ $ALLOW_NODE = $CURRENT_NODE ]]; then
+	whiptail --msgbox "Node $CURRENT_NODE cannot $ACTION itself." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return
+    fi
 
     case "$ACTION" in
 	"allow" )
-	    $ASTERISK -r -x "database put allowlist/$CURRENT_NODE $ANSWER \"allow node $ANSWER to connect to node $CURRENT_NODE\""
+	    $ASTERISK -r -x "database put allowlist/$CURRENT_NODE $ALLOW_NODE \"allow node $ALLOW_NODE to connect to node $CURRENT_NODE\""
 	    ;;
 	"block" )
-	    $ASTERISK -r -x "database put denylist/$CURRENT_NODE  $ANSWER \"block node $ANSWER from connecting to node $CURRENT_NODE\""
+	    $ASTERISK -r -x "database put denylist/$CURRENT_NODE  $ALLOW_NODE \"block node $ALLOW_NODE from connecting to node $CURRENT_NODE\""
 	    ;;
     esac
 
@@ -1569,23 +1576,24 @@ do_limit_nodes_remove() {
     while true; do
 	calc_wt_size
 
-	ANSWER=$(whiptail							\
-		    --title "$TITLE"						\
-		    --inputbox "Node number to remove from the $ACTION list:"	\
-		    $MSGBOX_HEIGHT $MSGBOX_WIDTH				\
-		    ""								\
+	ANSWER=$(whiptail								\
+		    --title "$TITLE"							\
+		    --inputbox "Node number (or call) to remove from the $ACTION list:"	\
+		    $MSGBOX_HEIGHT $MSGBOX_WIDTH					\
+		    ""									\
 		    3>&1 1>&2 2>&3)
 	if [[ $? -ne 0 ]]; then
 	    return
 	fi
 
-	re=^[0-9]\+$
-	if [[ $ANSWER =~ $re ]]; then
-	    LIMIT_NODE=$ANSWER
+	re_node=^[0-9]\+$
+	re_call=^[0-9A-Za-z/-]{3,}$
+	if [[ $ANSWER =~ $re_node || $ANSWER =~ $re_call ]]; then
+	    LIMIT_NODE=${ANSWER^^}
 	    break
 	fi
 
-	whiptail --msgbox "Please enter a valid node number, usually 4 or more digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	whiptail --msgbox "Please enter a valid node number (or call)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
     case "$ACTION" in
@@ -1634,7 +1642,7 @@ do_update_allow_block_lists() {
 	if [[ ${#ALLOW_BLOCK_LIST[@]} -eq 0 ]]; then
 
 	    read -r -d '' LIMIT_TEXT << EOT
-Connections to this node can be limited by providing a list of nodes that are "allowed" to connect OR a list of nodes that are "blocked" from connecting.
+Connections to this node can be limited by providing a list of nodes (or calls) that are "allowed" to connect OR a list of nodes (or calls) that are "blocked" from connecting.
 
 Would you like to limit access to node $CURRENT_NODE?
 EOT
@@ -1649,14 +1657,14 @@ EOT
 		break
 	    fi
 
-	    ANSWER=$(whiptail						\
-			--title "$TITLE"				\
-			--menu "AllStar Node Limit Connections Menu"	\
-			$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
-			--ok-button "Select"				\
-			--cancel-button "Back"				\
-			"1" "Limit connections to specific nodes"	\
-			"2" "Block connections from specific nodes"	\
+	    ANSWER=$(whiptail							\
+			--title "$TITLE"					\
+			--menu "AllStar Node Limit Connections Menu"		\
+			$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT			\
+			--ok-button "Select"					\
+			--cancel-button "Back"					\
+			"1" "Limit connections to specific nodes (or calls)"	\
+			"2" "Block connections from specific nodes (or calls)"	\
 			3>&1 1>&2 2>&3)
 	    if [[ $? -ne 0 ]]; then
 		break
@@ -1695,7 +1703,7 @@ EOT
 		LIMIT_TYPE="allowed"
 		MENU_TITLE="AllStar Node Allowed Connections Menu"
 		read -r -d '' LIMIT_TEXT << EOT
-Connections to node $CURRENT_NODE are currently limited to the following nodes :
+Connections to node $CURRENT_NODE are currently limited to the following nodes (or calls) :
 
 ${allowlist[@]}
 
@@ -1706,11 +1714,11 @@ EOT
 		LIMIT_TYPE="blocked"
 		MENU_TITLE="AllStar Node Blocked Connections Menu"
 		read -r -d '' LIMIT_TEXT << EOT
-All connections to node $CURRENT_NODE are allowed except for the following nodes :
+All connections to node $CURRENT_NODE are allowed except for the following nodes (or calls) :
 
 ${blocklist[@]}
 
-Would you like to change the list of blocked nodes?
+Would you like to change the list of blocked nodes (or calls)?
 EOT
 	    fi
 
@@ -1731,9 +1739,9 @@ EOT
 			$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT		\
 			--ok-button "Select"				\
 			--cancel-button "Back"				\
-			"A" "Add node to be $LIMIT_TYPE"		\
-			"R" "Remove $LIMIT_TYPE node"			\
-			"X" "Remove all $LIMIT_TYPE nodes"		\
+			"A" "Add node (or call) to be $LIMIT_TYPE"	\
+			"R" "Remove $LIMIT_TYPE node (or call)"		\
+			"X" "Remove all $LIMIT_TYPE nodes (and calls)"	\
 			3>&1 1>&2 2>&3)
 	    if [[ $? -ne 0 ]]; then
 		break
