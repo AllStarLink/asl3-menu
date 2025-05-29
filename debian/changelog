@@ -1,3 +1,11 @@
+asl3-menu (1.14-1) stable; urgency=medium
+
+  * node-setup: Allow first node to be "1999" (#82)
+  * node-setup: only one registration per new node (#83)
+  * Extend allow/deny lists to include both node #'s AND calls (#84)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Thu, 29 May 2025 09:00:46 -0400
+
 asl3-menu (1.13-1) stable; urgency=medium
 
   * asl-backup-menu: add "backup-local" support (#77)
