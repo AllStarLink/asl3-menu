@@ -633,24 +633,27 @@ do_node_rename() {
 	CURRENT_NODE=$SAVE_NODE
     fi
 
-    # Update appropriate rpt_http_registrations.conf lines
+    # Update node registration lines
     if [[ $NEW_NODE -ge 2000 ]]; then
 	#
-	# Update node registration
-	#
-	# Note:
-	# * The template node has a node # of "1234" and not "1999". Fix this first :-)
-	# * Then, change node number.
+	# Update HTTP node registration
 	#
 	sed -i										\
 	    -e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:/"	\
 	    -e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
+	#
+	# Update IAX node registration
+	#
+	sed -i										\
+	    -e "/^;*register\s*=>\s*1999:12345@/ s/1999:12345/${CURRENT_NODE}:/"	\
+	    -e "/^;*register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/iax.conf
     else
 	#
 	# Do not register private nodes
 	#
 	REM_NODE=$CURRENT_NODE
 	do_node_remove_registration
+	do_node_remove_iax_registration
 
 	#
 	# and clean up some cruft
@@ -678,6 +681,7 @@ do_node_rename() {
     sed -i -e "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/voter.conf
 
     update_file_permissions			\
+	$CONFIG_DIR/iax.conf			\
 	$CONFIG_DIR/rpt.conf			\
 	$CONFIG_DIR/rpt_http_registrations.conf	\
 	$CONFIG_DIR/extensions.conf		\
@@ -785,6 +789,7 @@ do_node_set_password() {
     if [[ $CURRENT_NODE -lt 2000 ]]; then
 	REM_NODE=$CURRENT_NODE
 	do_node_remove_registration
+	do_node_remove_iax_registration
 	return
     fi
 
@@ -792,25 +797,35 @@ do_node_set_password() {
 	CURRENT_PASSWORD=""
     fi
 
-    # Check registration, add if missing
-    egrep									\
-	--quiet									\
-	-e "^register.*=>*\s*1234:abcdef@"					\
-	-e "^register.*=>*\s*$CURRENT_NODE:"					$CONFIG_DIR/rpt_http_registrations.conf
+    #
+    # Check/update HTTP registration, add if missing
+    #
+    egrep											\
+	--quiet											\
+	-e "^register.*=>*\s*1234:abcdef@"							\
+	-e "^register.*=>*\s*$CURRENT_NODE:"							$CONFIG_DIR/rpt_http_registrations.conf
     if [ $? -ne 0 ]; then
 	do_node_add_registration
     fi
 
-    #
-    # Update node registration
-    #
-    # Note:
-    # * The template node has a node # of "1234" and not "1999". Fix this first :-)
-    # * Then, change node password.
-    #
     sed -i											\
 	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
 	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/:${CURRENT_PASSWORD}@/:${NEW_PASSWORD}@/"	$CONFIG_DIR/rpt_http_registrations.conf
+
+    #
+    # Check/update IAX registration, add if missing
+    #
+    egrep											\
+	--quiet											\
+	-e "^;*register.*=>*\s*1999:12345@"							\
+	-e "^;*register.*=>*\s*$CURRENT_NODE:"							$CONFIG_DIR/iax.conf
+    if [ $? -ne 0 ]; then
+	do_node_add_iax_registration
+    fi
+
+    sed -i											\
+	-e "/^;*register\s*=>\s*1999:12345@/ s/1999:12345/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
+	-e "/^;*register\s*=>\s*${CURRENT_NODE}:/ s/:${CURRENT_PASSWORD}@/:${NEW_PASSWORD}@/"	$CONFIG_DIR/iax.conf
 
     # Update "save-node" configuration
     egrep --quiet "^NODE=$CURRENT_NODE$" /etc/asterisk/savenode.conf
@@ -824,7 +839,10 @@ do_node_set_password() {
 	    -e "/^ENABLE\s*=/   s/ENABLE\s*=.*/ENABLE=1/"			$CONFIG_DIR/savenode.conf
     fi
 
-    update_file_permissions $CONFIG_DIR/rpt_http_registrations.conf $CONFIG_DIR/savenode.conf
+    update_file_permissions			\
+	$CONFIG_DIR/iax.conf			\
+	$CONFIG_DIR/rpt_http_registrations.conf	\
+	$CONFIG_DIR/savenode.conf
 
     AST_RESTART=1
 }
@@ -2113,6 +2131,41 @@ do_node_remove_registration() {
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
 }
 
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+do_node_add_iax_registration() {
+    echo "......do_node_add_iax_registration ($CURRENT_NODE)" >>$logfile
+
+    if [[ "$CURRENT_PASSWORD" = "=Not Set=" ]]; then
+	CURRENT_PASSWORD=""
+    fi
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/iax.conf
+	# add the registration
+	ex $CONFIG_DIR/iax.conf		<<_END_OF_INPUT
+/^\[general]
+/^\[
+i
+;register => ${CURRENT_NODE}:${CURRENT_PASSWORD}@register.allstarlink.org
+
+.
+:wq
+_END_OF_INPUT
+    TEMPLATE_EDIT_END $CONFIG_DIR/iax.conf
+}
+
+do_node_remove_iax_registration() {
+    echo "......do_node_remove_iax_registration ($REM_NODE)" >>$logfile
+
+    TEMPLATE_EDIT_START $CONFIG_DIR/iax.conf
+	# remove the per-node registration
+	sed -i -e "/^\[general]/,/^\[/ { /^;*register\s*=>\s*${REM_NODE}/d; }"	\
+								$CONFIG_DIR/iax.conf
+    TEMPLATE_EDIT_END $CONFIG_DIR/iax.conf
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
 do_node_add() {
     echo "do_node_add" >>$logfile
 
@@ -2164,6 +2217,7 @@ _END_OF_INPUT
 
     if [[ $CURRENT_NODE -ge 2000 ]]; then
 	do_node_add_registration
+	do_node_add_iax_registration
     fi
 
     if [[ -z "$NEW_INTERFACE_TYPE$NEW_DUPLEX" ]]; then
@@ -2175,6 +2229,7 @@ _END_OF_INPUT
     fi
 
     update_file_permissions			\
+	$CONFIG_DIR/iax.conf			\
 	$CONFIG_DIR/modules.conf		\
 	$CONFIG_DIR/rpt.conf			\
 	$CONFIG_DIR/rpt_http_registrations.conf
@@ -2233,6 +2288,7 @@ do_node_remove() {
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt.conf
 
     do_node_remove_registration
+    do_node_remove_iax_registration
 
     # Remove the [node] from the SimpleUSB configuration
     TEMPLATE_EDIT_START	$CONFIG_DIR/simpleusb.conf
@@ -2253,6 +2309,7 @@ do_node_remove() {
     do_update_chan_modules
 
     update_file_permissions			\
+	$CONFIG_DIR/iax.conf			\
 	$CONFIG_DIR/modules.conf		\
 	$CONFIG_DIR/rpt.conf			\
 	$CONFIG_DIR/rpt_http_registrations.conf	\
