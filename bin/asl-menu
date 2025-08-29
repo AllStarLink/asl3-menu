@@ -74,11 +74,17 @@ calc_wt_size() {
 get_home_info() {
     echo "get_home_info" >>$logfile
 
-    REALID=$(who am i | awk '{print $1}')
-    if [ $REALID == "root" ]; then
-	HOMEDIR=/$REALID
-    else
-	HOMEDIR="/home/$REALID"
+    REAL_USER="${SUDO_USER:-$(id -un)}"
+
+    HOMEDIR=""
+    if command -v getent >/dev/null 2>&1; then
+	HOMEDIR="$(getent passwd "$REAL_USER" | awk -F: '{print $6}')"
+    fi
+    if [[ -z "$HOMEDIR" ]]; then
+	eval HOMEDIR="~$REAL_USER"
+    fi
+    if [[ -z "$HOMEDIR" || ! -d "$HOMEDIR" ]]; then
+	HOMEDIR="${HOME:-/root}"
     fi
 }
 
@@ -332,14 +338,14 @@ do_enable_login_menu() {
 	    sed -i "/^sudo \/usr\/bin\/asl-menu/d" $HOMEDIR/.bashrc;
 	    whiptail										\
 		--title "$TITLE"								\
-		--msgbox "The ASL \"menu\" will no longer be started at login for user \"$REALID\". You may set this again by selecting this menu item again."	\
+		--msgbox "The ASL \"menu\" will no longer be started at login for user \"$REAL_USER\". You may set this again by selecting this menu item again."	\
 		$MSGBOX_HEIGHT $MSGBOX_WIDTH
 	    ;;
 	1 ) # Add line
 	    echo "sudo /usr/bin/asl-menu" >> $HOMEDIR/.bashrc
 	    whiptail										\
 		--title "$TITLE"								\
-		--msgbox "The ASL \"menu\" will now start at login for user \"$REALID\"."	\
+		--msgbox "The ASL \"menu\" will now start at login for user \"$REAL_USER\"."	\
 		$MSGBOX_HEIGHT $MSGBOX_WIDTH
 	    ;;
 	* ) whiptail										\
