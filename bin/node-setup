@@ -577,17 +577,39 @@ do_query_node_number() {
 
 	re=^[0-9]{4,6}$
 	if ! [[ $ANSWER =~ $re ]]; then
-	    whiptail --msgbox "The node number must have 4-6 digits." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    whiptail								\
+		--title "$TITLE"						\
+		--msgbox "The node number must have 4-6 digits."		\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
 	elif [[ $ANSWER -lt 1000 ]]; then
-	    whiptail --msgbox "Private node numbers start at 1000." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    whiptail								\
+		--title "$TITLE"						\
+		--msgbox "Private node numbers start at 1000."			\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
 	elif [[ $ANSWER -ge 2000 && $ANSWER =~ ^1 ]]; then
-	    whiptail --msgbox "Registered node numbers cannot start with a \"1\"." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    whiptail								\
+		--title "$TITLE"						\
+		--msgbox "Registered node numbers cannot start with a \"1\"."	\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH
 	elif [[ "$1" = "first" && $ANSWER = $CURRENT_NODE ]]; then
 	    break
-	elif [[ ${nodes[@]} =~ $ANSWER ]]; then
-	    whiptail --msgbox "Node number \"$ANSWER\" is already defined, please choose another." $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	else
-	    break
+	    nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
+	    MATCH=0
+	    for node in "${nodes[@]}"; do
+		if [[ "$node" == "$ANSWER" ]]; then
+		    whiptail							\
+			--title "$TITLE"					\
+			--msgbox "Node number \"$ANSWER\" is already defined, please choose another."	\
+			$MSGBOX_HEIGHT $MSGBOX_WIDTH
+			MATCH=1
+		    break
+		fi
+	    done
+
+	    if [[ $MATCH -eq 0 ]]; then
+		break
+	    fi
 	fi
     done
 
@@ -639,13 +661,13 @@ do_node_rename() {
 	# Update HTTP node registration
 	#
 	sed -i										\
-	    -e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:/"	\
-	    -e "/^register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"		$CONFIG_DIR/rpt_http_registrations.conf
+	    -e "/^;*register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:/"	\
+	    -e "/^;*register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/rpt_http_registrations.conf
 	#
 	# Update IAX node registration
 	#
 	sed -i										\
-	    -e "/^;*register\s*=>\s*1999:12345@/ s/1999:12345/${CURRENT_NODE}:/"	\
+	    -e "/^;*register\s*=>\s*1998:12345@/ s/1998:12345/${CURRENT_NODE}:/"	\
 	    -e "/^;*register\s*=>\s*${CURRENT_NODE}:/ s/$CURRENT_NODE/$NEW_NODE/"	$CONFIG_DIR/iax.conf
     else
 	#
@@ -658,7 +680,7 @@ do_node_rename() {
 	#
 	# and clean up some cruft
 	#
-	egrep --quiet -e "^register.*=>*\s*1234:abcdef@"				$CONFIG_DIR/rpt_http_registrations.conf
+	grep -q -E "^register[[:space:]]*=>[[:space:]]*1234:abcdef@"			$CONFIG_DIR/rpt_http_registrations.conf
 	if [ $? -eq 0 ]; then
 	    REM_NODE=1234
 	    do_node_remove_registration
@@ -669,7 +691,15 @@ do_node_rename() {
     sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/$CURRENT_NODE/$NEW_NODE/"			$CONFIG_DIR/extensions.conf
 
     # Update "save-node" configuration
-    sed -i -e "/^NODE\s*=/ s/NODE\s*=.*/NODE=$NEW_NODE/"				$CONFIG_DIR/savenode.conf
+    grep -q -E "^NODE[[:space:]]*=[[:space:]]*${CURRENT_NODE}([[:space:]].*)?$"		$CONFIG_DIR/savenode.conf
+    if [ $? -eq 0 ]; then
+	#
+	# if we are renaming the node referenced in the "save-node" configuration
+	# then we also need to update here
+	#
+	sed -i -e "/^NODE\s*=/ s/NODE\s*=.*/NODE=$NEW_NODE/"				$CONFIG_DIR/savenode.conf
+    fi
+
 
     # Update "simpleusb" configuration
     sed -i -e "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/simpleusb.conf
@@ -681,10 +711,10 @@ do_node_rename() {
     sed -i -e "/^\[$CURRENT_NODE\]/ s/$CURRENT_NODE/$NEW_NODE/"				$CONFIG_DIR/voter.conf
 
     update_file_permissions			\
+	$CONFIG_DIR/extensions.conf		\
 	$CONFIG_DIR/iax.conf			\
 	$CONFIG_DIR/rpt.conf			\
 	$CONFIG_DIR/rpt_http_registrations.conf	\
-	$CONFIG_DIR/extensions.conf		\
 	$CONFIG_DIR/savenode.conf		\
 	$CONFIG_DIR/simpleusb.conf		\
 	$CONFIG_DIR/usbradio.conf		\
@@ -800,43 +830,50 @@ do_node_set_password() {
     #
     # Check/update HTTP registration, add if missing
     #
-    egrep											\
-	--quiet											\
-	-e "^register.*=>*\s*1234:abcdef@"							\
-	-e "^register.*=>*\s*$CURRENT_NODE:"							$CONFIG_DIR/rpt_http_registrations.conf
+    grep -q -E											\
+	-e "^register[[:space:]]*=>[[:space:]]*1234:abcdef@"					\
+	-e "^register[[:space:]]*=>[[:space:]]*${CURRENT_NODE}:"				$CONFIG_DIR/rpt_http_registrations.conf
     if [ $? -ne 0 ]; then
 	do_node_add_registration
     fi
 
-    sed -i											\
-	-e "/^register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
-	-e "/^register\s*=>\s*${CURRENT_NODE}:/ s/:${CURRENT_PASSWORD}@/:${NEW_PASSWORD}@/"	$CONFIG_DIR/rpt_http_registrations.conf
+    sed -i												\
+	-e "/^;*register\s*=>\s*1234:abcdef@/ s/1234:abcdef/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
+	-e "/^;*register\s*=>\s*${CURRENT_NODE}:/ s/:${CURRENT_PASSWORD}@/:${NEW_PASSWORD}@/"	$CONFIG_DIR/rpt_http_registrations.conf
 
     #
     # Check/update IAX registration, add if missing
     #
-    egrep											\
-	--quiet											\
-	-e "^;*register.*=>*\s*1999:12345@"							\
-	-e "^;*register.*=>*\s*$CURRENT_NODE:"							$CONFIG_DIR/iax.conf
+    grep -q -E											\
+	-e "^;*register[[:space:]]*=>[[:space:]]*1998:12345@"					\
+	-e "^;*register[[:space:]]*=>[[:space:]]*${CURRENT_NODE}:"				$CONFIG_DIR/iax.conf
     if [ $? -ne 0 ]; then
 	do_node_add_iax_registration
     fi
 
     sed -i											\
-	-e "/^;*register\s*=>\s*1999:12345@/ s/1999:12345/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
+	-e "/^;*register\s*=>\s*1998:12345@/ s/1998:12345/${CURRENT_NODE}:${CURRENT_PASSWORD}/"	\
 	-e "/^;*register\s*=>\s*${CURRENT_NODE}:/ s/:${CURRENT_PASSWORD}@/:${NEW_PASSWORD}@/"	$CONFIG_DIR/iax.conf
 
-    # Update "save-node" configuration
-    egrep --quiet "^NODE=$CURRENT_NODE$" /etc/asterisk/savenode.conf
+    #
+    # Check/update "save-node" configuration
+    #
+    grep -q -E "^NODE[[:space:]]*=[[:space:]]*0([[:space:]].*)?$"				$CONFIG_DIR/savenode.conf
+    if [[ $? -eq 0 ]]; then
+	#
+	# the old primary node must have been removed, make this the new primary node
+	#
+	sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/0/${CURRENT_NODE}/"					$CONFIG_DIR/savenode.conf
+    fi
+    grep -q -E "^NODE[[:space:]]*=[[:space:]]*${CURRENT_NODE}([[:space:]].*)?$"			$CONFIG_DIR/savenode.conf
     if [ $? -eq 0 ]; then
 	#
 	# if we are updating the node referenced in the "save-node" configuration
 	# then we also need to update here (and mark as enabled).
 	#
-	sed -i									\
-	    -e "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWORD/"	\
-	    -e "/^ENABLE\s*=/   s/ENABLE\s*=.*/ENABLE=1/"			$CONFIG_DIR/savenode.conf
+	sed -i											\
+	    -e "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=$NEW_PASSWORD/"			\
+	    -e "/^ENABLE\s*=/   s/ENABLE\s*=.*/ENABLE=1/"					$CONFIG_DIR/savenode.conf
     fi
 
     update_file_permissions			\
@@ -989,7 +1026,7 @@ do_query_node_interface() {
     ANSWER=$(whiptail					\
 		--title "$TITLE"			\
 		--menu "Select Radio Interface"		\
-		--default-item=$DEFAULT_ITEM		\
+		--default-item $DEFAULT_ITEM		\
 		$WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
 		--ok-button "Select"			\
 		--cancel-button "$LABEL_CANCEL"		\
@@ -1429,15 +1466,15 @@ do_node_set_usrp() {
 
 get_ami_settings () {
     #sed removes all before = and any after ;
-    CURRENT_AMI_SECRET=$(grep '^secret\s*=\s*' $CONFIG_DIR/manager.conf			\
-	| tail -1									\
+    CURRENT_AMI_SECRET=$(grep -E '^secret[[:space:]]*=[[:space:]]*' $CONFIG_DIR/manager.conf	\
+	| tail -1										\
 	| sed 's/^secret\s*=\s*//;s/\s*;.*$//')
 
 }
 
 get_iax_settings () {
     # get up the bind  port
-    CURRENT_BINDPORT=$(grep '^bindport\s*=\s*' $CONFIG_DIR/iax.conf					\
+    CURRENT_BINDPORT=$(grep -E '^bindport[[:space:]]*=[[:space:]]*' $CONFIG_DIR/iax.conf	\
 	| sed 's/^bindport\s*=\s*//;s/\s*;.*$//')
     if [[ -z "$CURRENT_BINDPORT" ]]; then
 	CURRENT_BINDPORT=4569
@@ -1525,8 +1562,11 @@ get_node_settings () {
 
     rm $AWK_TMP
 
+    #
     # and pick up the node password
-    CURRENT_PASSWORD=$(grep "^register.*=>*\s*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
+    #
+
+    CURRENT_PASSWORD=$(grep -E "^register[[:space:]]*=>?[[:space:]]*${CURRENT_NODE}:" $CONFIG_DIR/rpt_http_registrations.conf	\
 	| sed 's/.*:\(.*\)@.*/\1/')
     if [[ -z "$CURRENT_PASSWORD" ]]; then
 	CURRENT_PASSWORD='=Not Set='
@@ -1915,7 +1955,7 @@ do_allstar_node_setup_menu() {
 
 	CHOICE=$(whiptail					\
 		    --title "$TITLE"				\
-		    --default-item=$DEFAULT_ITEM		\
+		    --default-item $DEFAULT_ITEM		\
 		    --menu "AllStar Node Setup Menu"		\
 		    $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT	\
 		    --ok-button "Select"			\
@@ -2126,7 +2166,7 @@ do_node_remove_registration() {
 
     TEMPLATE_EDIT_START $CONFIG_DIR/rpt_http_registrations.conf
 	# remove the per-node registration
-	sed -i -e "/^\[registrations]/,/^\[/ { /^register\s*=>\s*${REM_NODE}/d; }"	\
+	sed -i -e "/^\[registrations]/,/^\[/ { /^;*register\s*=>\s*${REM_NODE}/d; }"	\
 								$CONFIG_DIR/rpt_http_registrations.conf
     TEMPLATE_EDIT_END $CONFIG_DIR/rpt_http_registrations.conf
 }
@@ -2228,7 +2268,14 @@ _END_OF_INPUT
 	do_node_set_defaults
     fi
 
+    # If needed, update [primary node] reference in extensions.conf
+    grep -q -E "^NODE[[:space:]]*=[[:space:]]*0([[:space:]]*(;.*)?)?$"	$CONFIG_DIR/extensions.conf
+    if [[ $? -eq 0 ]]; then
+	sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/0/$CURRENT_NODE/"		$CONFIG_DIR/extensions.conf
+    fi
+
     update_file_permissions			\
+	$CONFIG_DIR/extensions.conf		\
 	$CONFIG_DIR/iax.conf			\
 	$CONFIG_DIR/modules.conf		\
 	$CONFIG_DIR/rpt.conf			\
@@ -2305,14 +2352,50 @@ do_node_remove() {
 	TEMPLATE_CATEGORY_REMOVE "${REM_NODE}"			$CONFIG_DIR/voter.conf
     TEMPLATE_EDIT_END	$CONFIG_DIR/voter.conf
 
+    # Update [primary node] reference in extensions.conf
+    grep -q -E "^NODE[[:space:]]*=[[:space:]]*${REM_NODE}([[:space:]]*(;.*)?)?$"	$CONFIG_DIR/extensions.conf
+    if [[ $? -eq 0 ]]; then
+	# get node list
+	nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
+	if [[ ${#nodes[@]} -gt 0 ]]; then
+	    # new primary
+	    NEW_NODE="${nodes[0]}"
+	else
+	    # placeholder for new primary
+	    NEW_NODE="0"
+	fi
+	sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/$REM_NODE/$NEW_NODE/"		$CONFIG_DIR/extensions.conf
+    fi
+
+    # Update [primary node] reference in savenode.conf
+    grep -q -E "^NODE[[:space:]]*=[[:space:]]*${REM_NODE}([[:space:]].*)?$"	$CONFIG_DIR/savenode.conf
+    if [[ $? -eq 0 ]]; then
+	# get node list
+	nodes=( `grep "^\[[0-9][0-9]*]" $CONFIG_DIR/rpt.conf | sed -e 's/^\[//' -e 's/].*//'` )
+	if [[ ${#nodes[@]} -gt 0 ]]; then
+	    # new primary
+	    NEW_NODE="${nodes[0]}"
+	else
+	    # placeholder for new primary
+	    NEW_NODE="0"
+	    # clear password, force "ENABLE=0"
+	    sed -i								\
+		-e "/^PASSWORD\s*=/ s/PASSWORD\s*=.*/PASSWORD=/"		\
+		-e "/^ENABLE\s*=/ s/ENABLE\s*=.*/ENABLE=0/"			$CONFIG_DIR/savenode.conf
+	fi
+	sed -i -e "/^NODE\s*=\s*[0-9]\+/ s/$REM_NODE/$NEW_NODE/"		$CONFIG_DIR/savenode.conf
+    fi
+
     # Update modules
     do_update_chan_modules
 
     update_file_permissions			\
+	$CONFIG_DIR/extensions.conf		\
 	$CONFIG_DIR/iax.conf			\
 	$CONFIG_DIR/modules.conf		\
 	$CONFIG_DIR/rpt.conf			\
 	$CONFIG_DIR/rpt_http_registrations.conf	\
+	$CONFIG_DIR/savenode.conf		\
 	$CONFIG_DIR/simpleusb.conf		\
 	$CONFIG_DIR/usbradio.conf		\
 	$CONFIG_DIR/voter.conf
@@ -2333,7 +2416,11 @@ do_allstar_node_select_menu() {
 	#echo "nodes = ${nodes[*]}"
 	#echo "    # = ${#nodes[@]}"
 
-	if [ ${#nodes[@]} -eq 1 -a "${nodes[0]}" = "1999" ]; then
+	if [ ${#nodes[@]} -eq 0 -a "$DEFAULT_ITEM" = "1" ]; then
+	    # if we have no configured nodes
+	    do_node_add
+	    return
+	elif [ ${#nodes[@]} -eq 1 -a "${nodes[0]}" = "1999" ]; then
 	    # if we only have the [template] node
 	    CURRENT_NODE="${nodes[0]}"
 
