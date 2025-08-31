@@ -34,7 +34,8 @@ logfile=/dev/null
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-check_if_root() {
+check_if_root()
+{
     if [[ $EUID != 0 ]]; then
 	whiptail --msgbox "This script must be run as root or with sudo" $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	exit 1
@@ -43,7 +44,8 @@ check_if_root() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-calc_wt_size() {
+calc_wt_size()
+{
     echo "doing calc_wt_size" >>$logfile
 
     # Bash knows the terminal size
@@ -72,12 +74,32 @@ calc_wt_size() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_astres() {
+do_astres()
+{
     echo "do_astres" >>$logfile
 
     result=$($ASTRES)
     whiptail --msgbox "$result" $MSGBOX_HEIGHT $MSGBOX_WIDTH
     AST_RESTART=0
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+show_wget_error()
+{
+    RC=$1
+
+    case $RC in
+	4 ) ERR="There was a network error during the file transfer."
+	    ;;
+	5 ) ERR="There was an SSL verification error during the file transfer."
+	    ;;
+	6 ) ERR="The node/password in the \"/etc/asterisk/savenode.conf\" file is not correct."
+	    ;;
+	* ) ERR="There was an error in the file transfer (\"wget(1)\" exit code $RC)."
+	    ;;
+    esac
+    whiptail --msgbox "${ERR}" $MSGBOX_HEIGHT $MSGBOX_WIDTH
 }
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -173,7 +195,8 @@ do_query_savenode_settings()
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_setup_include_list() {
+do_setup_include_list()
+{
     echo "do_setup_include_list" >>$logfile
 
     if [[ -f "${INCLUDE_LIST}" ]]; then
@@ -239,7 +262,8 @@ __EOF__
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_backup_local_create() {
+do_backup_local_create()
+{
     echo "do_backup_local_create" >>$logfile
 
     if [[ -z "$1" ]]; then
@@ -296,7 +320,8 @@ do_backup_local_create() {
     return 0
 }
 
-do_backup_asl_push() {
+do_backup_asl_push()
+{
     echo "do_backup_asl_push" >>$logfile
 
     if [[ -z "$1" ]]; then
@@ -334,7 +359,7 @@ do_backup_asl_push() {
 	$SAVESITE/savenode.cgi
     RC=$?
     if [[ $RC -ne 0 ]]; then
-	whiptail --msgbox "There was an error in the file transfer (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	show_wget_error $RC
 	return $RC
     fi
     echo "Saved \"$BACKUP_ARCHIVE\""
@@ -342,7 +367,8 @@ do_backup_asl_push() {
     return 0
 }
 
-do_backup_local() {
+do_backup_local()
+{
     echo "do_backup_local" >>$logfile
 
     BACKUP_NAME=$(date +ASL_%Y-%m-%d_%H%M.tgz)
@@ -359,7 +385,8 @@ do_backup_local() {
     return 0
 }
 
-do_backup() {
+do_backup()
+{
     echo "do_backup" >>$logfile
 
     BACKUP_NAME=$(date +ASL_%Y-%m-%d_%H%M.tgz)
@@ -410,7 +437,8 @@ do_backup() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_restore_factory() {
+do_restore_factory()
+{
     echo "do_restore_factory" >>$logfile
 
     echo "Restoring ASL3 \"default\" configuration"
@@ -444,7 +472,8 @@ do_restore_factory() {
     return 0
 }
 
-do_restore_factory_select() {
+do_restore_factory_select()
+{
     echo "do_restore_factory_select" >>$logfile
 
     whiptail								\
@@ -469,7 +498,8 @@ do_restore_factory_select() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_restore_local() {
+do_restore_local()
+{
     echo "do_restore_local" >>$logfile
 
     if [[ -z "$1" ]]; then
@@ -512,7 +542,8 @@ do_restore_local() {
     return 0
 }
 
-do_restore_local_select() {
+do_restore_local_select()
+{
     echo "do_restore_local" >>$logfile
 
     calc_wt_size
@@ -568,7 +599,8 @@ do_restore_local_select() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_restore_asl() {
+do_restore_asl()
+{
     echo "do_restore_asl" >>$logfile
 
     if [[ -z "$1" ]]; then
@@ -601,7 +633,7 @@ do_restore_asl() {
 	"${SAVESITE}/getfile.cgi?$ASL_ARCHIVE"
     RC=$?
     if [[ $RC -ne 0 ]]; then
-	whiptail --msgbox "There was an error in the file transfer (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	show_wget_error $RC
 	return $RC
     elif [[ ! -f "$BACKUP_ARCHIVE" ]]; then
 	echo "Backup archive not available"
@@ -613,7 +645,8 @@ do_restore_asl() {
     return $?
 }
 
-do_restore_asl_select() {
+do_restore_asl_select()
+{
     echo "do_restore_asl_select" >>$logfile
 
     calc_wt_size
@@ -630,21 +663,30 @@ do_restore_asl_select() {
 #   whiptail --msgbox "Reading information about the \"$SAVEHOST\" configuration backups for AllStarLink node $NODE" $MSGBOX_HEIGHT $MSGBOX_WIDTH
 
     # get list of backups from backup.allstarlink.org
+
+    RESP=$(wget --quiet								\
+		--output-document=-						\
+		--user="$NODE"							\
+		--password="$PASSWORD"						\
+		--tries=1							\
+		--timeout=30							\
+		"$SAVEHOST"							\
+		2>&1)
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	show_wget_error $RC
+	return $RC
+    fi
+
     ASL_FILES=()
-    for asl_file in							\
-	$(wget								\
-	      --output-document=-					\
-	      --http-user="$NODE"					\
-	      --http-password="$PASSWORD"				\
-	      ${SAVEHOST}						\
-	      2>/dev/null						\
-	  | grep --only-matching '<A .*HREF="getfile.cgi?[^"].*>'	\
-	  | sed -e 's/<A .*HREF=['"'"'"]getfile.cgi?//'			\
-	        -e 's/["'"'"'].*$//'					\
-	)
-    do
-	ASL_FILES+=("${asl_file}")
-    done
+    mapfile -t ASL_FILES < <(
+	printf '%s' "$RESP"							\
+	| grep -E --only-matching --ignore-case					\
+		'<a [^>]*href=["'"'"']getfile\.cgi\?[^"'"'"']+["'"'"']'		\
+	| sed -E								\
+		's/^.*href=["'"'"']getfile\.cgi\?([^"'"'"']+)["'"'"'].*$/\1/i'
+    )
+
     #echo ${ASL_FILES[@]}
     #echo ${#ASL_FILES[@]}
     if [[ ${#ASL_FILES[@]} -eq 0 ]]; then
@@ -693,7 +735,8 @@ do_restore_asl_select() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_remove_local() {
+do_remove_local()
+{
     echo "do_remove_local" >>$logfile
 
     # build array of /etc/asterisk/*.tgz files
@@ -743,7 +786,8 @@ do_remove_local() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_edit_backup_files() {
+do_edit_backup_files()
+{
     echo "do_edit_backup_files" >>$logfile
 
     do_setup_include_list
@@ -763,7 +807,8 @@ do_edit_backup_files() {
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-do_backup_restore_menu_info() {
+do_backup_restore_menu_info()
+{
     echo "do_backup_restore_menu_info" >>$logfile
 
     read -r -d '' text << EOT
@@ -779,7 +824,8 @@ EOT
     whiptail --title "$TITLE" --scrolltext --msgbox "$text" $WT_HEIGHT $WT_WIDTH
 }
 
-do_backup_restore_menu() {
+do_backup_restore_menu()
+{
     echo "do_backup_restore_menu" >>$logfile
 
     DEFAULT_ITEM=0
@@ -884,7 +930,7 @@ while [[ $# -gt 0 ]]; do
 	    echo "Usage: $0 [ --debug ] [ --sub-menu ]"
 	    echo "       $0 [ --debug ] ( backup | backup-local )"
 	    echo "       $0 [ --debug ] ( restore-local | restore-asl | restore-factory )"
-	    echo "       $0 [ --debug ] remove ]"
+	    echo "       $0 [ --debug ] remove"
 	    exit 1
     esac
 done
