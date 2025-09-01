@@ -15,15 +15,19 @@
 # WD6AWP 03/2021, 04/2021
 # WA3WCO 01/2024
 
-ASL_VERSION=$(asl-show-version --asl)
+ASL_VERSION=$(asl-show-version --asl 2>/dev/null)
 AST_RESTART=${AST_RESTART:-0}
 ASTRES=/usr/bin/astres.sh
 BACKUP_DIR="${DESTDIR}/var/asl-backups"
 BACKUP_MAXSIZE=2000000
 CONFIG_DIR=${CONFIG_DIR:-"${DESTDIR}/etc/asterisk"}
+ERR=""
 INCLUDE_LIST="${BACKUP_DIR}/asl-backup-files"
 MSGBOX_HEIGHT=12
 MSGBOX_WIDTH=60
+NO_PROMPT=0
+NO_PUSH=0
+POST_EXEC=""
 SAVEHOST="backup.allstarlink.org"
 SAVENODE_CONFIG="${CONFIG_DIR}/savenode.conf"
 SAVESITE="https://${SAVEHOST}"
@@ -31,6 +35,17 @@ SUB_MENU=0
 TITLE="AllStarLink $ASL_VERSION"
 
 logfile=/dev/null
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+usage()
+{
+    echo "Usage: $0 [ menu ]"
+    echo "       $0 backup [ --post-exec command ] [ --no-prompt ] [ --local-only ]"
+    echo "       $0 ( restore-local | restore-asl | restore-factory )"
+    echo "       $0 remove"
+    exit 1
+}
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
@@ -85,7 +100,23 @@ do_astres()
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-show_wget_error()
+do_exit()
+{
+    RC=$1
+
+    if [[ $RC -ne 0 && -n "$ERR"  ]]; then
+	if [[ $NO_PROMPT -eq 0 ]]; then
+	    whiptail --msgbox "${ERR}" $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	else
+	    echo "${ERR}"
+	fi
+    fi
+    exit $RC
+}
+
+# ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+
+explain_wget_error()
 {
     RC=$1
 
@@ -276,7 +307,7 @@ do_backup_local_create()
 	mkdir -p "$BACKUP_DIR"	2>/dev/null
 	RC=$?
 	if [[ $RC -ne 0 ]]; then
-	    whiptail --msgbox "There was an error creating the archive directory (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    ERR="There was an error creating the archive directory (exit code $RC)."
 	    return $RC
 	fi
     fi
@@ -311,12 +342,23 @@ do_backup_local_create()
     RC=$?
     rm -f "$TAR_INCLUDE"
     if [[ $RC -ne 0 ]]; then
-	whiptail --msgbox "There was an error creating the backup (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	rm -f "$BACKUP_ARCHIVE"
+	ERR="There was an error creating the backup (exit code $RC)."
 	return $RC
     fi
+    chmod go+r "$BACKUP_ARCHIVE"
+
     echo "Created \"$BACKUP_ARCHIVE\""
 
-    chmod go+r "$BACKUP_ARCHIVE"
+    if [[ -n "${POST_EXEC}" ]]; then
+	"${POST_EXEC}" "$BACKUP_ARCHIVE"
+	RC=$?
+	if [[ $RC -ne 0 ]]; then
+	    ERR="The --post-exec command, \"${POST_EXEC}\", returned an error (exit code $RC)."
+	    return $RC
+	fi
+    fi
+
     return 0
 }
 
@@ -359,10 +401,10 @@ do_backup_asl_push()
 	$SAVESITE/savenode.cgi
     RC=$?
     if [[ $RC -ne 0 ]]; then
-	show_wget_error $RC
+	explain_wget_error $RC
 	return $RC
     fi
-    echo "Saved \"$BACKUP_ARCHIVE\""
+    echo "Saved \"$BACKUP_ARCHIVE\" to \"$SAVEHOST\""
 
     return 0
 }
@@ -392,6 +434,7 @@ do_backup()
     BACKUP_NAME=$(date +ASL_%Y-%m-%d_%H%M.tgz)
     BACKUP_ARCHIVE="$BACKUP_DIR/$BACKUP_NAME"
 
+    if [[ $NO_PROMPT -eq 0 ]]; then
     whiptail								\
 	--title "$TITLE"						\
 	--yesno "Save local backup to :\n  \"$BACKUP_ARCHIVE\" ?"	\
@@ -407,6 +450,7 @@ do_backup()
 	    return $RC
 	    ;;
     esac
+    fi
 
     do_backup_local_create "$BACKUP_ARCHIVE"
     RC=$?
@@ -414,12 +458,18 @@ do_backup()
 	return $RC
     fi
 
+    if [[ $NO_PUSH -eq 1 ]]; then
+	return 0
+    fi
+
+    if [[ $NO_PROMPT -eq 0 ]]; then
     whiptail								\
 	--title "$TITLE"						\
 	--yesno "Backup completed.\n\nWould you also like to save this backup to :\n  \"$SAVEHOST\" ?"	\
 	$MSGBOX_HEIGHT $MSGBOX_WIDTH
     if [[ $? -ne 0 ]]; then
 	return 0
+    fi
     fi
 
     do_backup_asl_push "$BACKUP_ARCHIVE"
@@ -428,9 +478,12 @@ do_backup()
 	return $RC
     fi
 
+    if [[ $NO_PROMPT -eq 0 ]]; then
     whiptail								\
+	    --title "$TITLE"						\
 	--msgbox "Backup to \"$SAVEHOST\" complete."			\
 	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+    fi
 
     return 0
 }
@@ -633,7 +686,7 @@ do_restore_asl()
 	"${SAVESITE}/getfile.cgi?$ASL_ARCHIVE"
     RC=$?
     if [[ $RC -ne 0 ]]; then
-	show_wget_error $RC
+	explain_wget_error $RC
 	return $RC
     elif [[ ! -f "$BACKUP_ARCHIVE" ]]; then
 	echo "Backup archive not available"
@@ -674,7 +727,7 @@ do_restore_asl_select()
 		2>&1)
     RC=$?
     if [[ $RC -ne 0 ]]; then
-	show_wget_error $RC
+	explain_wget_error $RC
 	return $RC
     fi
 
@@ -881,9 +934,7 @@ do_backup_restore_menu()
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
-/usr/bin/clear
-check_if_root
-
+CMD="menu"
 while [[ $# -gt 0 ]]; do
     case "$1" in
 	"--debug" )
@@ -891,19 +942,64 @@ while [[ $# -gt 0 ]]; do
 	    shift
 	    ;;
 
+	"--no-prompt" )
+	    NO_PROMPT=1
+	    shift
+	    ;;
+
+	"--local-only" )
+	    NO_PUSH=1
+	    shift
+	    ;;
+
+	"--post-exec" )
+	    if [[ $# -lt 2 ]]; then
+		usage
+	    fi
+	    POST_EXEC="$2"
+	    shift; shift
+	    if [[ ! -x "${POST_EXEC}" ]]; then
+		echo "Backup post-exec command, \"${POST_EXEC}\" not available"
+		exit 1
+	    fi
+	    ;;
+
 	"--sub-menu" )
 	    SUB_MENU=1
 	    shift
 	    ;;
 
+	"menu" | "backup" | "backup-local" | "restore-local" | "restore-asl" | "restore-factory" | "remove" )
+	    if [[ "${CMD}" != "menu" ]]; then
+		usage
+	    fi
+	    CMD="$1"
+	    shift
+	    ;;
+
+	* )
+	    usage
+	    ;;
+    esac
+done
+
+if [[ $NO_PROMPT -eq 0 ]]; then
+    /usr/bin/clear
+fi
+
+check_if_root
+
+case "${CMD}" in
 	"backup" )
 	    do_backup
 	    exit $?
 	    ;;
 
 	"backup-local" )
-	    do_backup_local
-	    exit $?
+	NO_PROMPT=1
+	NO_PUSH=1
+	do_backup
+	do_exit $?
 	    ;;
 
 	"restore-local" )
@@ -925,15 +1021,7 @@ while [[ $# -gt 0 ]]; do
 	    do_remove_local
 	    exit $?
 	    ;;
-
-	* )
-	    echo "Usage: $0 [ --debug ] [ --sub-menu ]"
-	    echo "       $0 [ --debug ] ( backup | backup-local )"
-	    echo "       $0 [ --debug ] ( restore-local | restore-asl | restore-factory )"
-	    echo "       $0 [ --debug ] remove"
-	    exit 1
     esac
-done
 
 #
 # ... and w/no other args, present the backup/restore menu
