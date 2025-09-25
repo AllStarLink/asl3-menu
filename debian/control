@@ -12,5 +12,5 @@ Rules-Requires-Root: binary-targets
 Package: asl3-menu
 Architecture: all
 Recommends: asl3
-Depends: ${misc:Depends}, sensible-utils
+Depends: ${misc:Depends}, sensible-utils, dialog
 Description: Command line tools and menus for AllStarLink version 3 (ASL3).

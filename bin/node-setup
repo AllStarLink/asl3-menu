@@ -60,18 +60,21 @@ calc_wt_size() {
     if [[ $LINES -lt 22 ]]; then
 	echo "Terminal size must be at least 22 lines."
 	exit 1
+    elif [[ $LINES -gt 24 ]]; then
+	WT_HEIGHT=$(($LINES - 2))
+    else
+	WT_HEIGHT=22
     fi
+
     if [[ $COLUMNS -lt 60 ]]; then
 	echo "Terminal size must be at least 60 columns."
 	exit 1
-    fi
-
-    WT_HEIGHT=22
-
-    # Leave full width up to 100 columns
-    WT_WIDTH=$COLUMNS
-    if [[ $COLUMNS -gt 100 ]]; then
+    elif [[ $COLUMNS -gt 100 ]]; then
 	WT_WIDTH=100
+    elif [[ $COLUMNS -ge 64 ]]; then
+	WT_WIDTH=$(($COLUMNS - 4))
+    else
+	WT_WIDTH=60
     fi
 
     WT_MENU_HEIGHT=$(($WT_HEIGHT - 8))
@@ -269,7 +272,7 @@ idrecording = ${CALLSIGN_PREFIX}${NEW_CALLSIGN}
 do_update_telemetry() {
     echo "doing do_update_telemetry" >>$logfile
 
-    read -r -d '' TELEMETRY_TEXT << EOT
+    read -r -d '' TELEMETRY_TEXT << EOT || :
 Nodes with no telemetry can be setup for either full or half duplex.  Full duplex is preferred when interfacing with an external multiport repeater controller.
 
 Do you want to use full or half duplex?
@@ -721,29 +724,15 @@ do_node_rename() {
 	$CONFIG_DIR/voter.conf
 
     # Update allowlist/denylist
-    ALLOW_BLOCK_LIST=( `$ASTERISK -r -x "database show %list/${CURRENT_NODE}/%"		\
-			| awk '/ results found/ { next; }				\
-			       { print $1; next; }					\
-			      '								\
-		       `								\
-		     )
-    if [[ ${#ALLOW_BLOCK_LIST[@]} -gt 0 ]]; then
-	for e in ${ALLOW_BLOCK_LIST[@]}; do
-	    node=$(echo $e | awk -F/ '{ print $4 }')
-	    case "$e" in
-		/allowlist/${CURRENT_NODE}/* )
-		    $ASTERISK -r -x "database put allowlist/$NEW_NODE $node \"allow node $node to connect to node $NEW_NODE\""
-		    ;;
-		/denylist/${CURRENT_NODE}/*  )
-		    $ASTERISK -r -x "database put denylist/$NEW_NODE  $node \"block node $node from connecting to node $NEW_NODE\""
-		    ;;
-		* )
-		    echo "Unexpected per-node database value (\"$e\")"
-		    ;;
-	    esac
+    get_allow_block_lists
+    if [[ ${#allow_block_list[@]} -gt 0 ]]; then
+	for node in ${allow_block_list[@]}; do
+	    list="${allow_block_type[$node]}"
+	    reason="${allow_block_reason[$node]}"
+	    $ASTERISK -x "database put ${list}/$NEW_NODE $node \"${reason}\""
 	done
-	$ASTERISK -r -x "database deltree allowlist $CURRENT_NODE"
-	$ASTERISK -r -x "database deltree denylist $CURRENT_NODE"
+	$ASTERISK -x "database deltree allowlist $CURRENT_NODE"
+	$ASTERISK -x "database deltree denylist $CURRENT_NODE"
     fi
 
     AST_RECONFIG=1
@@ -1577,10 +1566,59 @@ get_node_settings () {
 
 get_allow_block_settings () {
     CURRENT_NODE_ACCESS="Open"
-    COUNT=$($ASTERISK -r -x "database show %list/${CURRENT_NODE}/%" | awk '/ results found/ { print $1 }')
+    COUNT=$( $ASTERISK -x "database show %list/${CURRENT_NODE}/%" 2>/dev/null	\
+	     | awk '/ results found/ { print $1 }'				\
+	   )
     if [[ $COUNT -ne 0 ]]; then
 	CURRENT_NODE_ACCESS="Restricted"
     fi
+}
+
+get_allow_block_list () {
+    ACTION=$1
+
+    case "$ACTION" in
+	"allow" )
+	    LIST="allowlist"
+	    ;;
+	"block" )
+	    LIST="denylist"
+	    ;;
+    esac
+}
+
+get_allow_block_lists () {
+    allow_block_list=()
+    declare -g -A allow_block_type=()
+    declare -g -A allow_block_reason=()
+
+    re="^/(allowlist|denylist)/${CURRENT_NODE}/([^[:space:]:]+)[[:space:]]*:[[:space:]]*(.*\S)?[[:space:]]*$"
+
+    while IFS= read -r line; do
+	if [[ $line =~ $re ]]; then
+	    list="${BASH_REMATCH[1]}"
+	    node="${BASH_REMATCH[2]}"
+	    reason="${BASH_REMATCH[3]:-}"
+	    case "$list" in
+		"allowlist" )
+		    if [[ -z "$reason" ]]; then
+			reason="Node $node is allowed to connect to node $CURRENT_NODE"
+		    fi 
+		    ;;
+		"denylist" )
+		    if [[ -z "$reason" ]]; then
+			reason="Node $node is blocked from connecting to node $CURRENT_NODE"
+		    fi                                              
+		    ;;
+	    esac
+	    allow_block_list+=("$node")
+	    allow_block_type[$node]="$list"
+	    allow_block_reason[$node]="$reason"
+	fi
+    done < <(								\
+		$ASTERISK -x "database show %list/${CURRENT_NODE}/%"	\
+		| LC_ALL=C sort -t/ -k4,4n				\
+	    )
 }
 
 do_limit_nodes_add() {
@@ -1617,12 +1655,25 @@ do_limit_nodes_add() {
 
     case "$ACTION" in
 	"allow" )
-	    $ASTERISK -r -x "database put allowlist/$CURRENT_NODE $ALLOW_NODE \"allow node $ALLOW_NODE to connect to node $CURRENT_NODE\""
+	    INPUT_TEXT="Enter the reason for allowing node $ALLOW_NODE to connect to node $CURRENT_NODE (or leave blank) :"
 	    ;;
 	"block" )
-	    $ASTERISK -r -x "database put denylist/$CURRENT_NODE  $ALLOW_NODE \"block node $ALLOW_NODE from connecting to node $CURRENT_NODE\""
+	    INPUT_TEXT="Enter the reason for blocking node $ALLOW_NODE from connecting to node $CURRENT_NODE (or leave blank) :"
 	    ;;
     esac
+
+    ANSWER=$(whiptail				\
+		--title "$TITLE"		\
+		--inputbox "$INPUT_TEXT"	\
+		$MSGBOX_HEIGHT $MSGBOX_WIDTH	\
+		""				\
+		3>&1 1>&2 2>&3)
+    if [[ $? -ne 0 ]]; then
+	return
+    fi
+
+    get_allow_block_list "$ACTION"
+    $ASTERISK -x "database put $LIST/$CURRENT_NODE $ALLOW_NODE \"$ANSWER\""
 
     return
 }
@@ -1654,14 +1705,8 @@ do_limit_nodes_remove() {
 	whiptail --msgbox "Please enter a valid node number (or call)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
     done
 
-    case "$ACTION" in
-	"allow" )
-	    $ASTERISK -r -x "database del allowlist/$CURRENT_NODE $LIMIT_NODE"
-	    ;;
-	"block" )
-	    $ASTERISK -r -x "database del denylist/$CURRENT_NODE $LIMIT_NODE"
-	    ;;
-    esac
+    get_allow_block_list "$ACTION"
+    $ASTERISK -x "database del $LIST/$CURRENT_NODE $LIMIT_NODE"
 
     return
 }
@@ -1670,36 +1715,23 @@ do_limit_nodes_remove_all() {
     ACTION="$1"		# "allow" or "block"
     echo "do_limit_nodes_remove_all ($ACTION)" >>$logfile
 
-    case "$ACTION" in
-	"allow" )
-	    $ASTERISK -r -x "database deltree allowlist $CURRENT_NODE"
-	    ;;
-	"block" )
-	    $ASTERISK -r -x "database deltree denylist $CURRENT_NODE"
-	    ;;
-    esac
+    get_allow_block_list "$ACTION"
+    $ASTERISK -x "database deltree $LIST $CURRENT_NODE"
 
     return
 }
 
 do_update_allow_block_lists() {
-    echo "do_update_allow_block_lists" >>$logfile
+    echo "..do_update_allow_block_lists" >>$logfile
 
     while true; do
 	calc_wt_size
 
-	# get allow/block list
-	ALLOW_BLOCK_LIST=( `$ASTERISK -r -x "database show %list/${CURRENT_NODE}/%"	\
-			   | awk '/ results found/ { next; }	\
-				  { print $1; next; }		\
-				 '				\
-			  `					\
-			 )
-	#echo "ALLOW_BLOCK_LIST(${#ALLOW_BLOCK_LIST[@]}) = ${ALLOW_BLOCK_LIST[@]}"
+	get_allow_block_lists
 
-	if [[ ${#ALLOW_BLOCK_LIST[@]} -eq 0 ]]; then
+	if [[ ${#allow_block_list[@]} -eq 0 ]]; then
 
-	    read -r -d '' LIMIT_TEXT << EOT
+	    read -r -d '' LIMIT_TEXT << EOT || :
 Connections to this node can be limited by providing a list of nodes (or calls) that are "allowed" to connect OR a list of nodes (or calls) that are "blocked" from connecting.
 
 Would you like to limit access to node $CURRENT_NODE?
@@ -1739,51 +1771,52 @@ EOT
 
 	    allowlist=()
 	    blocklist=()
-	    for e in ${ALLOW_BLOCK_LIST[@]}; do
-	        node=$(echo $e | awk -F/ '{ print $4 }')
-	        case "$e" in
-		    /allowlist/${CURRENT_NODE}/* )
-			allowlist+=("$node")
+	    for node in ${allow_block_list[@]}; do
+		type=${allow_block_type[$node]}
+		printf -v entry '%-6s : %s' "$node" "${allow_block_reason[$node]}"
+	        case "$type" in
+		    "allowlist" )
+			allowlist+=("$entry")
 			;;
-		    /denylist/${CURRENT_NODE}/*  )
-			blocklist+=("$node")
-			;;
-		    * )
-			echo "Unexpected per-node database value (\"$e\")"
+		    "denylist" )
+			blocklist+=("$entry")
 			;;
 	        esac
 	    done
-	    #echo "allowlist(${#allowlist[@]}) = ${allowlist[@]}"
-	    #echo "blocklist(${#blocklist[@]}) = ${blocklist[@]}"
 
 	    if [[ ${#allowlist[@]} -gt 0 ]]; then
 		ACTION="allow"
+		MENU_TITLE="Allowed Connections Menu for Node $CURRENT_NODE"
 		LIMIT_TYPE="allowed"
-		MENU_TITLE="AllStar Node Allowed Connections Menu"
-		read -r -d '' LIMIT_TEXT << EOT
-Connections to node $CURRENT_NODE are currently limited to the following nodes (or calls) :
-
-${allowlist[@]}
-
-Would you like to change the list of allowed nodes?
+		read -r -d '' LIMIT_TEXT << EOT || :
+Connections to node $CURRENT_NODE are currently limited to the nodes below.
+Would you like to change the list of allowed nodes (or calls) ?
 EOT
+		LIMIT_TEXT=$'\n'"${LIMIT_TEXT//$'\n'/ }"
+		LIMIT_TEXT+=$'\n'"$(printf '\n  %s' "${allowlist[@]}")"
 	    else
 		ACTION="block"
+		MENU_TITLE="Blocked Connections Menu for Node $CURRENT_NODE"
 		LIMIT_TYPE="blocked"
-		MENU_TITLE="AllStar Node Blocked Connections Menu"
-		read -r -d '' LIMIT_TEXT << EOT
-All connections to node $CURRENT_NODE are allowed except for the following nodes (or calls) :
-
-${blocklist[@]}
-
-Would you like to change the list of blocked nodes (or calls)?
+		read -r -d '' LIMIT_TEXT << EOT || :
+All connections to node $CURRENT_NODE are allowed except for those below.
+Would you like to change the list of blocked nodes (or calls) ?
 EOT
+		LIMIT_TEXT=$'\n'"${LIMIT_TEXT//$'\n'/ }"
+		LIMIT_TEXT+=$'\n'"$(printf '\n  %s' "${blocklist[@]}")"
 	    fi
 
-	    whiptail					\
+	    dialog					\
 		--title "$TITLE"			\
-		--yesno					\
+		--cursor-off-label			\
 		--defaultno				\
+		--erase-on-exit				\
+		--no-collapse				\
+		--no-shadow				\
+		--scrollbar				\
+		--yes-label "Update"			\
+		--no-label  "Keep"			\
+		--yesno					\
 		"${LIMIT_TEXT}"				\
 		${WT_HEIGHT} ${WT_WIDTH}
 	    ANSWER=$?
@@ -1901,7 +1934,7 @@ do_interface_tune_cli() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_node_setup_menu_info() {
-    read -r -d '' text << EOT
+    read -r -d '' text << EOT || :
 Node Setup Menu Instructions
 
 For new nodes you should choose values for each one of these items.
@@ -2526,7 +2559,7 @@ do_allstar_node_select_menu() {
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 
 do_main_menu_info() {
-    read -r -d '' text << EOT
+    read -r -d '' text << EOT || :
 Node Setup Main Menu Instructions
 
 Use arrow keys to scroll, TAB to select <Ok> and then press enter to close these instructions.
