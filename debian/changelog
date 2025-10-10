@@ -1,3 +1,15 @@
+asl3-menu (1.15-1) stable; urgency=medium
+
+  * Add node customization support (#79)
+  * node-setup: also update node secret in IAX registrations (#85)
+  * asl-menu: avoid using `who am i` command (#91)
+  * node-setup: improve node # changes, especially INN <--> NNX (#92)
+  * asl-backup-menu: report errors such as node+password mismatch (#93)
+  * asl-backup-menu: add "--post-exec <command>" option (#94)
+  * node-setup: allow comments on allowed/blocked nodes (#97)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Fri, 10 Oct 2025 19:27:35 -0400
+
 asl3-menu (1.14-1) stable; urgency=medium
 
   * node-setup: Allow first node to be "1999" (#82)
