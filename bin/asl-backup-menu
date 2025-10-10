@@ -68,7 +68,7 @@ calc_wt_size()
     #   The number of lines are $LINES
 
     if [[ $LINES -lt 22 ]]; then
- 	echo "Terminal size must be at least 22 lines."
+	echo "Terminal size must be at least 22 lines."
 	exit 1
     fi
     if [[ $COLUMNS -lt 60 ]]; then
@@ -435,21 +435,21 @@ do_backup()
     BACKUP_ARCHIVE="$BACKUP_DIR/$BACKUP_NAME"
 
     if [[ $NO_PROMPT -eq 0 ]]; then
-    whiptail								\
-	--title "$TITLE"						\
-	--yesno "Save local backup to :\n  \"$BACKUP_ARCHIVE\" ?"	\
-	$MSGBOX_HEIGHT $MSGBOX_WIDTH
-    RC=$?
-    case $RC in
-	0) # yes
-	    ;;
-	1) # no, return a "special" non-zero exit code
-	    return 254
-	    ;;
-	*) # esc (or other error)
-	    return $RC
-	    ;;
-    esac
+	whiptail							\
+	    --title "$TITLE"						\
+	    --yesno "Save local backup to :\n  \"$BACKUP_ARCHIVE\" ?"	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	RC=$?
+	case $RC in
+	    0)	# yes
+		;;
+	    1)	# no, return a "special" non-zero exit code
+		return 254
+		;;
+	    *)	# esc (or other error)
+		return $RC
+		;;
+	esac
     fi
 
     do_backup_local_create "$BACKUP_ARCHIVE"
@@ -463,13 +463,13 @@ do_backup()
     fi
 
     if [[ $NO_PROMPT -eq 0 ]]; then
-    whiptail								\
-	--title "$TITLE"						\
-	--yesno "Backup completed.\n\nWould you also like to save this backup to :\n  \"$SAVEHOST\" ?"	\
-	$MSGBOX_HEIGHT $MSGBOX_WIDTH
-    if [[ $? -ne 0 ]]; then
-	return 0
-    fi
+	whiptail							\
+	    --title "$TITLE"						\
+	    --yesno "Backup completed.\n\nWould you also like to save this backup to :\n  \"$SAVEHOST\" ?"	\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	if [[ $? -ne 0 ]]; then
+	    return 0
+	fi
     fi
 
     do_backup_asl_push "$BACKUP_ARCHIVE"
@@ -479,10 +479,10 @@ do_backup()
     fi
 
     if [[ $NO_PROMPT -eq 0 ]]; then
-    whiptail								\
+	whiptail							\
 	    --title "$TITLE"						\
-	--msgbox "Backup to \"$SAVEHOST\" complete."			\
-	$MSGBOX_HEIGHT $MSGBOX_WIDTH
+	    --msgbox "Backup to \"$SAVEHOST\" complete."		\
+	    $MSGBOX_HEIGHT $MSGBOX_WIDTH
     fi
 
     return 0
@@ -707,13 +707,11 @@ do_restore_asl_select()
     do_check_savenode_settings
     if [[ $? -ne 0 ]]; then
 	do_query_savenode_settings
-    	if [[ $? -ne 0 ]]; then
+	if [[ $? -ne 0 ]]; then
 	    whiptail --msgbox "$ERR" $MSGBOX_HEIGHT $MSGBOX_WIDTH
 	    return 1
 	fi
     fi
-
-#   whiptail --msgbox "Reading information about the \"$SAVEHOST\" configuration backups for AllStarLink node $NODE" $MSGBOX_HEIGHT $MSGBOX_WIDTH
 
     # get list of backups from backup.allstarlink.org
 
@@ -990,38 +988,38 @@ fi
 check_if_root
 
 case "${CMD}" in
-	"backup" )
-	    do_backup
-	    exit $?
-	    ;;
+    "backup" )
+	do_backup
+	exit $?
+	;;
 
-	"backup-local" )
+    "backup-local" )
 	NO_PROMPT=1
 	NO_PUSH=1
 	do_backup
 	do_exit $?
-	    ;;
+	;;
 
-	"restore-local" )
-	    do_restore_local_select
-	    exit $?
-	    ;;
+    "restore-local" )
+	do_restore_local_select
+	exit $?
+	;;
 
-	"restore-asl" )
-	    do_restore_asl_select
-	    exit $?
-	    ;;
+    "restore-asl" )
+	do_restore_asl_select
+	exit $?
+	;;
 
-	"restore-factory" )
-	    do_restore_factory_select
-	    exit $?
-	    ;;
+    "restore-factory" )
+	do_restore_factory_select
+	exit $?
+	;;
 
-	"remove" )
-	    do_remove_local
-	    exit $?
-	    ;;
-    esac
+    "remove" )
+	do_remove_local
+	exit $?
+	;;
+esac
 
 #
 # ... and w/no other args, present the backup/restore menu
