@@ -31,7 +31,8 @@ Valid ASL commands:
   node_list, node_show, node_create, node_create_full, node_delete
   node_rename, node_set_callsign, node_set_channel, node_set_duplex
   node_set_ipport, node_set_password, node_set_statistics, ami_show
-  ami_create, ami_set_secret, module_enable
+  ami_create, ami_set_secret, module_enable, simpleusb_list
+  simpleusb_show, usbradio_list, usbradio_show
 ```
 
 #### The "--host=\<host>" argument and "settings.ini" file :
@@ -106,6 +107,10 @@ Note: so far, this does not appear to be an issue :-)
 - `asl-configuration.php --command=ami_create --newUser=<user> --secret=<secret>`
 - `asl-configuration.php --command=ami_set_secret [--user=<user>] --secret=<secret>`
 - `asl-configuration.php --command=module_enable --module=astModule --load=(yes|no)`
+- `asl-configuration.php --command=simpleusb_list`
+- `asl-configuration.php --command=simpleusb_show --node=<node>`
+- `asl-configuration.php --command=usbradio_list`
+- `asl-configuration.php --command=usbradio_show --node=<node>`
 
 ```
 Where:

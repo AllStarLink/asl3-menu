@@ -7,7 +7,7 @@ RELVER = 1.14
 DEBVER = 1
 RELPLAT ?= deb$(shell lsb_release -rs 2> /dev/null)
 
-BUILDABLES = bin # php-backend
+BUILDABLES = bin menu-lib etc/asterisk/custom # php-backend
 
 ifdef ${DESTDIR}
 DESTDIR=${DESTDIR}

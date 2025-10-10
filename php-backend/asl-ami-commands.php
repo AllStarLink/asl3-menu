@@ -515,6 +515,56 @@ $aslCommands = array(
 		),
 	),
 
+	'simpleusb_list' =>  array(
+		'args'    => array(),
+		'help'    => "",
+		'actions' => array(
+			0 => array(
+				'action' => "ListCategories",
+				'file'   => "simpleusb.conf",
+				'string' => ""
+			),
+		),
+	),
+
+	'simpleusb_show' =>  array(
+		'args'    => array("node"),
+		'help'    => "--node=<node>",
+		'actions' => array(
+			0 => array(
+				'action' => "GetConfig",
+				'k-v'    => true,
+				'file'   => "simpleusb.conf",
+				'string' => "Category: M-node\r\n"
+			),
+		),
+	),
+
+	'usbradio_list' =>  array(
+		'args'    => array(),
+		'help'    => "",
+		'actions' => array(
+			0 => array(
+				'action' => "ListCategories",
+				'file'   => "usbradio.conf",
+				'string' => ""
+			),
+		),
+	),
+
+	'usbradio_show' =>  array(
+		'args'    => array("node"),
+		'help'    => "--node=<node>",
+		'actions' => array(
+			0 => array(
+				'action' => "GetConfig",
+				'k-v'    => true,
+				'file'   => "usbradio.conf",
+				'string' => "Category: M-node\r\n"
+			),
+		),
+	),
+
 );
 #print "\$aslCommands: "; print_r($aslCommands);
 
@@ -793,6 +843,8 @@ function ASLCommandExecute($options) {
 			}
 			break;
 		    case "node_show" :
+		    case "simpleusb_show" :
+		    case "usbradio_show" :
 			if (trim($response) == "No categories found") {
 			    $node = $validOptions['node'];
 			    throw new Exception("No node \"$node\"");
@@ -910,6 +962,8 @@ function ASLCommandExecute($options) {
 				    $cmdString);
 		switch ($command) {
 		    case "node_list" :
+		    case "simpleusb_list" :
+		    case "usbradio_list" :
 			$categories = preg_split ('/\r\n|\n|\r/', $response);
 			foreach ($categories as $category) {
 			    $res = preg_match('/^Category-.*: ([0-9]+)/',
