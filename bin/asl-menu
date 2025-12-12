@@ -267,13 +267,35 @@ do_ping_google_dns() {
     whiptail --msgbox "DNS ping results:\n\n$PINGRESULTS" $WT_HEIGHT $WT_WIDTH
 }
 
-do_ping_asl_register() {
-    echo "do_ping_asl_register" >>$logfile
+do_check_asl_register() {
+    echo "do_check_asl_register" >>$logfile
 
     clear
     echo "Please wait..."
-    PINGRESULTS=$(ping register.allstarlink.org -c4)
-    whiptail --msgbox "register.allstarlink.org ping results:\n\n$PINGRESULTS" $WT_HEIGHT $WT_WIDTH
+    ERR=$(wget					\
+	    --spider				\
+	    --timeout=5				\
+	    --tries=1				\
+	    --no-verbose			\
+	    "http://register.allstarlink.org"	\
+	    2>&1)
+    RC=$?
+    if [ $RC -eq 0 ]; then
+	MSG="The AllStar registration server is available."
+    else
+	MSG="The AllStar registration server is NOT available"
+	case "$RC" in
+	    4)	MSG+=" due to a network failure (DNS / connection / timeout)."
+		;;
+	    8)	MSG+=". The server issues an error message (below)."
+		;;
+	    *)	MSG+=" with a \"wget\" error (${RC})."
+		;;
+	esac
+	MSG+="\n\nMsg: ${ERR}"
+    fi
+
+    whiptail --msgbox "$MSG" $WT_HEIGHT $WT_WIDTH
 }
 
 do_asl_show_registrations() {
@@ -557,7 +579,7 @@ do_sys_diags_menu() {
 		    --ok-button "Select"			\
 		    --cancel-button "Back to Main" 		\
 		    "1" "Ping Google DNS (8.8.8.8)"		\
-		    "2" "Ping register.allstarlink.org"		\
+		    "2" "Check registration server"		\
 		    "3" "Show Asterisk version"			\
 		    "4" "Show Asterisk/AllStar registrations"	\
 		    "5" "Restart Asterisk"			\
@@ -572,7 +594,7 @@ do_sys_diags_menu() {
 
 	case "$CHOICE" in
 	    1)	do_ping_google_dns				;;
-	    2)	do_ping_asl_register				;;
+	    2)	do_check_asl_register				;;
 	    3)	do_asl_show_version				;;
 	    4)	do_asl_show_registrations			;;
 	    5)	do_astres					;;
