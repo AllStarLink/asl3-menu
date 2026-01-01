@@ -20,18 +20,31 @@ set -e
 do_configure() {
     set +e	# ignore errors temporarily
 
-    # find conffiles under /etc/asterisk belonging to asl3-menu
-    # and chown them to user asterisk.
+    # Set top-level custom dir ownership
+    if [ -d /etc/asterisk/custom ]; then
+        chown asterisk: /etc/asterisk/custom
+    fi
+
+    # Find conffiles under /etc/asterisk/custom belonging to
+    # asl3-menu and chown them to user asterisk.  Also, chown
+    # the parent directories.
     dpkg-query -W -f='${Conffiles}\n' asl3-menu 2>/dev/null	\
-    | sed -nr -e 's; (/etc/asterisk/.*) [0-9a-f]*;\1;p'		\
-    | while read conffile; do
-	chown asterisk: ${conffile} 2>/dev/null
+    | sed -nr -e 's; (/etc/asterisk/custom/.*) [0-9a-f]*;\1;p'	\
+    | while IFS= read -r conffile; do
+        # update the file
+        chown asterisk: "${conffile}" 2>/dev/null
+
+        # and the parent directory
+        dir=${conffile%/*}
+        if [ -d "${dir}" ]; then
+            chown asterisk: "${dir}" 2>/dev/null
+        fi
     done
 
-    # handle them in the end with a glob since it's way faster
-    dpkg-statoverride --quiet --list '/etc/asterisk/*'		\
-    | while read STAT; do
-	chown `echo $STAT | cut -d' ' -f 1,2,4 | sed 's/ /:/'` 2>/dev/null
+    # Re-apply any dpkg-statoverride entries under /etc/asterisk
+    dpkg-statoverride --quiet --list '/etc/asterisk/custom/*'	\
+    | while IFS=' ' read -r user group mode path; do
+        chown "${user}:${group}" "${path}" 2>/dev/null
     done
 
     set -e
