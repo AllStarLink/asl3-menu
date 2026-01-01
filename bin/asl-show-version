@@ -73,6 +73,7 @@ get_asl_package_info()
 	    dpkg-query			\
 		--showformat='${db:Status-Abbrev};  ${binary:Package;-30}  ${Version}\n'	\
 		--show			\
+		asl-apt-repos		\
 		asl3\*			\
 		dahdi\* 		\
 		allmon3\*		\
