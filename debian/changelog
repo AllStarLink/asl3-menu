@@ -1,3 +1,12 @@
+asl3-menu (1.16-1) stable; urgency=medium
+
+  * asl-menu: replace "Ping register.allstarlink.org" (#99)
+  * Ensure correct ownership/permissions of "/etc/asterisk/custom" (#100)
+  * node-setup: for SHARI nodes, the default configuration should use "duplex=1" (#101)
+  * asl-show-version: package versions should include "asl-apt-repos" (#102)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Sun, 04 Jan 2026 13:47:09 -0500
+
 asl3-menu (1.15-1) stable; urgency=medium
 
   * Add node customization support (#79)
