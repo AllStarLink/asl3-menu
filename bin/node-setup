@@ -1975,7 +1975,7 @@ check_customization () {
 	"SimpleUSB" )
 	    CUSTOMIZATION_CHANNEL="simpleusb"
 	    ;;
-	"SimpleUSB" )
+	"USBRadio" )
 	    CUSTOMIZATION_CHANNEL="usbradio"
 	    ;;
     esac
@@ -2032,6 +2032,42 @@ check_customization () {
 	DISPLAY_CUSTOMIZATIONS="Not available"
 	CUSTOMIZATIONS_MESSAGE="The \"*.conf\" files are not setup for customization."
 	return
+    fi
+
+    for stanza in node events functions morse telemetry wait-times; do
+	grep -q -E '^\[[^]]+\]\('"$stanza"-main'([,][^)]*)?\)[[:space:]]*(.*)?$'	"$CONFIG_DIR/rpt.conf"
+	if [[ $? -ne 0 ]]; then
+	    # if no "[12345](xxx-main)"
+	    DISPLAY_CUSTOMIZATIONS="Not available"
+	    CUSTOMIZATIONS_MESSAGE="The \"*.conf\" files are not setup for customization."
+	    return
+	fi
+
+	grep -q -E '^\['"$stanza"'-main\]\(!\)[[:space:]]*$'				"$CONFIG_DIR/rpt.conf"
+	if [[ $? -ne 0 ]]; then
+	    # if no "[xxx-main](!)"
+	    DISPLAY_CUSTOMIZATIONS="Not available"
+	    CUSTOMIZATIONS_MESSAGE="The \"*.conf\" files are not setup for customization."
+	    return
+	fi
+    done
+
+    if [[ -n "$CUSTOMIZATION_CHANNEL" ]]; then
+	grep -q -E '^\[[^]]+\]\('node-main'([,][^)]*)?\)[[:space:]]*(.*)?$'		"$CONFIG_DIR/${CUSTOMIZATION_CHANNEL}.conf"
+	if [[ $? -ne 0 ]]; then
+	    # if no "[12345](node-main)"
+	    DISPLAY_CUSTOMIZATIONS="Not available"
+	    CUSTOMIZATIONS_MESSAGE="The \"*.conf\" files are not setup for customization."
+	    return
+	fi
+
+	grep -q -E '^\[node-main\]\(!\)[[:space:]]*$'					"$CONFIG_DIR/${CUSTOMIZATION_CHANNEL}.conf"
+	if [[ $? -ne 0 ]]; then
+	    # if no "[node-main](!)"
+	    DISPLAY_CUSTOMIZATIONS="Not available"
+	    CUSTOMIZATIONS_MESSAGE="The \"*.conf\" files are not setup for customization."
+	    return
+	fi
     fi
 
     MATCH=1
@@ -2198,6 +2234,10 @@ do_node_clean_interface_defaults()
 			s/^rxmixerset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
 			s/^txmixaset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
 			s/^txmixbset[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
+			s/^rxvoiceadj[[:space:]]*=[[:space:]]*0.5([[:space:]]*(;.*)?)$/;&/
+			s/^rxctcssadj[[:space:]]*=[[:space:]]*0.5([[:space:]]*(;.*)?)$/;&/
+			s/^txctcssadj[[:space:]]*=[[:space:]]*200([[:space:]]*(;.*)?)$/;&/
+			s/^rxsquelchadj[[:space:]]*=[[:space:]]*500([[:space:]]*(;.*)?)$/;&/
 		    }
 		"							$CONFIG_DIR/usbradio.conf
 	    TEMPLATE_EDIT_END	$CONFIG_DIR/usbradio.conf
