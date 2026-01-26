@@ -20,6 +20,15 @@ set -e
 do_configure() {
     set +e	# ignore errors temporarily
 
+    # add asterisk user
+    if ! getent passwd asterisk > /dev/null ; then
+        adduser --system --group --quiet	\
+            --home /var/lib/asterisk		\
+            --no-create-home --disabled-login	\
+            --comment "Asterisk PBX daemon"	\
+            asterisk
+    fi
+
     # Set top-level custom dir ownership
     if [ -d /etc/asterisk/custom ]; then
         chown asterisk: /etc/asterisk/custom
