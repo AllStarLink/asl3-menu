@@ -37,6 +37,15 @@ if [[ ! -x "${CUSTOMIZATION_ENABLER}" ]]; then
     CUSTOMIZATION_ENABLER="/usr/share/asterisk/menu-lib/update-configuration-files.py"
 fi
 
+case "$ASL_VERSION" in
+   3 | 3.[0-7] | 3.[0-7].* )
+	NO_DAHDI=0
+	;;
+   * )
+	NO_DAHDI=1
+	;;
+esac
+
 logfile=/dev/null
 
 # ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
@@ -1012,7 +1021,11 @@ do_query_node_interface() {
     interface_types+=("2" "USBRadio     : CM1xx USB Cards with DSP (URIx or RA-40)"	)
     if [[ "$1" = "full" ]]; then
 	interface_types+=("3" "RTCM         : Radio Thin Client or Voter Boards"	)
-	interface_types+=("4" "Dahdi/pseudo : No radio interface or HUB node"		)
+	if [[ $NO_DAHDI -eq 0 ]]; then
+	    interface_types+=("4" "Dahdi/pseudo : No radio interface or HUB node"	)
+	else
+	    interface_types+=("4" "Local/pseudo : No radio interface or HUB node"	)
+	fi
 	interface_types+=("5" "USRP"							)
     fi
 
@@ -1128,7 +1141,9 @@ do_load_chan_modules() {
 		do_load_chan_module "voter"
 		;;
 	    "Pseudo" )
-		do_load_chan_module "dahdi"
+		if [[ $NO_DAHDI -eq 0 ]]; then
+		    do_load_chan_module "dahdi"
+		fi
 		;;
 	    "USRP" )
 		do_load_chan_module "usrp"
@@ -1441,7 +1456,11 @@ do_node_set_pseudo() {
     fi
 
     # Set [node] rxchannel
-    do_set_rxchannel "dahdi/pseudo"
+    if [[ $NO_DAHDI -eq 0 ]]; then
+	do_set_rxchannel "dahdi/pseudo"
+    else
+	do_set_rxchannel "Local/pseudo"
+    fi
 
     # Update modules
     do_update_chan_modules
@@ -1600,7 +1619,7 @@ get_node_settings () {
 			CURRENT_INTERFACE="Voter"
 			CURRENT_INTERFACE_TYPE="Voter"
 			;;
-		    dahdi/pseudo )
+		    dahdi/pseudo | Local/pseudo )
 			CURRENT_INTERFACE="No radio interface or HUB node"
 			CURRENT_INTERFACE_TYPE="Pseudo"
 			;;
