@@ -1,3 +1,11 @@
+asl3-menu (1.17-1) stable; urgency=medium
+
+  * node-setup: add AIOC customizations (#103)
+  * Ensure that the "asterisk" login exists (#106)
+  * node-setup: updates to support "Local/pseudo" channels (#107)
+
+ -- Allan Nathanson <wa3wco@arrl.net>  Sat, 07 Mar 2026 16:40:13 -0500
+
 asl3-menu (1.16-1) stable; urgency=medium
 
   * asl-menu: replace "Ping register.allstarlink.org" (#99)
