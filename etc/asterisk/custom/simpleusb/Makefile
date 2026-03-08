@@ -16,5 +16,5 @@ samples: $(DEMO_INSTALLABLES)
 all: install samples
 
 $(DESTDIR)$(conf_dir)/%: %
-	install -D -o asterisk -g asterisk -m 0644 $< $@
+	install -D -m 0644 $< $@
 
