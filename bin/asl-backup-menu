@@ -592,6 +592,35 @@ do_restore_local()
     fi
     echo "Restored \"$BACKUP_ARCHIVE\""
 
+    do_update_config
+
+    return 0
+}
+
+do_update_config()
+{
+    echo "do_update_config" >>$logfile
+
+    # Not when restoring into a test tree, nor without the package
+    if [[ -n "$DESTDIR" ]]; then
+	return 0
+    fi
+    dpkg-query -W -f='${db:Status-Abbrev}' asl3-asterisk-config 2>/dev/null | grep -q '^ii'
+    if [[ $? -ne 0 ]]; then
+	return 0
+    fi
+
+    # Bring the restored files up to date for this ASL3 version, as a
+    # package upgrade would (asl3-asterisk-config's postinst)
+    echo "Updating the restored configuration for this ASL3 version, please wait..."
+    dpkg-reconfigure --frontend=noninteractive asl3-asterisk-config
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	whiptail --msgbox "The configuration was restored but could not be updated for this ASL3 version (exit code $RC).\n\nRun \"sudo dpkg-reconfigure asl3-asterisk-config\" to update it." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return $RC
+    fi
+    echo "Updated the restored configuration"
+
     return 0
 }
 
