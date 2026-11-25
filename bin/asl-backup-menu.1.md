@@ -66,6 +66,9 @@ The "Restore" options will allow you to restore an AllStarLink configuration fro
 > **Note: Restore Updates**  
 > After a backup is restored, `asl-backup-menu` runs `dpkg-reconfigure asl3-asterisk-config` so that the restored files are updated for the installed ASL3 version, as a package upgrade would update them. A backup made on an older version of ASL3 then keeps working (for example, `dahdi/pseudo` channels become `Local/pseudo`).
 
+> **Note: Asterisk During a Restore**  
+> If Asterisk is running, `asl-backup-menu` stops it before restoring a backup and starts it again afterwards. Asterisk keeps `/var/lib/asterisk/astdb.sqlite3` (the node access lists) open while it runs, and would otherwise go on using the old database.
+
 > **Note: Restore Factory**  
 > The restore-factory option (and it's related menu item) will re-install the asl3-asterisk-config package, overwriting all the .conf files in `/etc/asterisk` with their default versions.  The `asl-backup-menu` command will *"try"* and retain the "secret=" key/value in the `/etc/asterisk/manager.conf` when it re-installs the config files.  **Asterisk must be restarted after this process to re-initialize with the new defaults.**
 
