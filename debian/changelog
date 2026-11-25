@@ -1,3 +1,10 @@
+asl3-menu (1.19-1) stable; urgency=medium
+
+  * Run the .postinst cleanups after a restore (#109)
+  * Avoid a race condition on astdb.sqlite (#110)
+
+ -- Helium <jason@mfamily.org>  Tue, 24 Nov 2026 19:46:26 -0500
+
 asl3-menu (1.18-1) stable; urgency=medium
 
   * Owner/group permissions need to be set [only] in postinst 
