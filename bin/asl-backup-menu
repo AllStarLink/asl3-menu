@@ -17,6 +17,8 @@
 
 ASL_VERSION=$(asl-show-version --asl 2>/dev/null)
 AST_RESTART=${AST_RESTART:-0}
+AST_RESTARTED=0
+AST_STOPPED=0
 ASTRES=/usr/bin/astres.sh
 BACKUP_DIR="${DESTDIR}/var/asl-backups"
 BACKUP_MAXSIZE=2000000
@@ -577,6 +579,12 @@ do_restore_local()
 	return 1
     fi
 
+    do_stop_asterisk
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	return $RC
+    fi
+
     echo "Restoring configuration, please wait..."
     RC=0
     tar					\
@@ -588,11 +596,70 @@ do_restore_local()
     RC=$?
     if [[ $RC -ne 0 ]]; then
 	whiptail --msgbox "There was an error restoring the configuration (exit code $RC)." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	do_start_asterisk
 	return $RC
     fi
     echo "Restored \"$BACKUP_ARCHIVE\""
 
     do_update_config
+    RC=$?
+
+    do_start_asterisk
+    if [[ $RC -ne 0 ]]; then
+	return $RC
+    fi
+
+    return 0
+}
+
+do_stop_asterisk()
+{
+    echo "do_stop_asterisk" >>$logfile
+
+    # Asterisk keeps /var/lib/asterisk/astdb.sqlite3 (the node access lists)
+    # open while it runs, and tar replaces each file with a new one: a
+    # running Asterisk would go on using the old database, and lose what it
+    # writes there (AllStarLink/asl-web-ui#71). Restore with it stopped.
+    AST_STOPPED=0
+    AST_RESTARTED=0
+    if [[ -n "$DESTDIR" ]]; then
+	return 0
+    fi
+    systemctl is-active --quiet asterisk.service
+    if [[ $? -ne 0 ]]; then
+	return 0
+    fi
+
+    echo "Stopping Asterisk, please wait..."
+    systemctl stop asterisk.service
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	whiptail --msgbox "Asterisk could not be stopped (exit code $RC), so nothing was restored." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return $RC
+    fi
+    AST_STOPPED=1
+
+    return 0
+}
+
+do_start_asterisk()
+{
+    echo "do_start_asterisk" >>$logfile
+
+    # Start Asterisk again if do_stop_asterisk stopped it
+    if [[ $AST_STOPPED -eq 0 ]]; then
+	return 0
+    fi
+    AST_STOPPED=0
+
+    echo "Starting Asterisk, please wait..."
+    systemctl start asterisk.service
+    RC=$?
+    if [[ $RC -ne 0 ]]; then
+	whiptail --msgbox "Asterisk did not start again after the restore (exit code $RC).\n\nCheck \"systemctl status asterisk\"." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	return $RC
+    fi
+    AST_RESTARTED=1
 
     return 0
 }
@@ -673,8 +740,13 @@ do_restore_local_select()
 	return $RC
     fi
 
-    whiptail --msgbox "The \"$BACKUP_ARCHIVE\" backup has been restored.\n\nAn ASL restart is required." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    AST_RESTART=1
+    if [[ $AST_RESTARTED -eq 1 ]]; then
+	whiptail --msgbox "The \"$BACKUP_ARCHIVE\" backup has been restored, and Asterisk restarted." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	AST_RESTART=0
+    else
+	whiptail --msgbox "The \"$BACKUP_ARCHIVE\" backup has been restored.\n\nAn ASL restart is required." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	AST_RESTART=1
+    fi
 
     return 0
 }
@@ -807,8 +879,13 @@ do_restore_asl_select()
 	return $RC
     fi
 
-    whiptail --msgbox "The \"$ASL_ARCHIVE\" backup has been restored.\n\nAn ASL restart is required." $MSGBOX_HEIGHT $MSGBOX_WIDTH
-    AST_RESTART=1
+    if [[ $AST_RESTARTED -eq 1 ]]; then
+	whiptail --msgbox "The \"$ASL_ARCHIVE\" backup has been restored, and Asterisk restarted." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	AST_RESTART=0
+    else
+	whiptail --msgbox "The \"$ASL_ARCHIVE\" backup has been restored.\n\nAn ASL restart is required." $MSGBOX_HEIGHT $MSGBOX_WIDTH
+	AST_RESTART=1
+    fi
 
     return 0
 }
